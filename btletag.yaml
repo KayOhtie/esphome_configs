@@ -1,0 +1,25 @@
+esphome:
+  name: btletag
+  platform: ESP32
+  board: featheresp32
+
+# wifi:
+#   ssid: "Yap House"
+#   password: "squeakthec0y0te"
+
+#   # Enable fallback hotspot (captive portal) in case wifi connection fails
+#   ap:
+#     ssid: "Btletag Fallback Hotspot"
+#     password: "oVhcHRO3wrub"
+
+# captive_portal:
+
+# Enable logging
+logger:
+
+# # Enable Home Assistant API
+# api:
+
+# ota:
+
+esp32_ble_tracker:
