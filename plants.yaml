@@ -126,7 +126,7 @@ interval:
 image:
   - file: "img/water-percent.png"
     id: 'water_percent'
-    type: BINARY
+    type: GRAYSCALE
 
 # display is 240x135
 display:
@@ -167,6 +167,6 @@ display:
           // it.strftime((240 / 2), (140 / 3) * 2 + 5, id(liberationsans_48), id(my_gray), TextAlign::CENTER, "%H:%M:%S", id(esptime).now());
 
           // Comment out the above lines to see the image without text overlaid
-          it.image(30, 10, id(water_percent));
-          it.print(110, (140 / 3) * 1 + 5, id(liberationsans_24), "Soil Moisture");
-          it.printf(110, (140 / 3) * 2 + 10, id(liberationsans_48), "%.0f %%", id(ble_moist).state );
+          it.image(10, 30, id(water_percent));
+          it.print(85, 30, id(liberationsans_24), id(my_gray), TextAlign::TOP_LEFT, "Coleus");
+          it.printf(85, (140 / 3) * 1 + 30, id(liberationsans_48),id(my_gray), TextAlign::TOP_LEFT, "%.0f %%", id(ble_moist).state );
