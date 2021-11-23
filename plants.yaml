@@ -4,8 +4,9 @@ esp32:
   board: esp32dev
   framework:
     type: esp-idf
-    version: recommended
-     # Custom sdkconfig options
+    version:
+      recommended
+      # Custom sdkconfig options
     sdkconfig_options:
       CONFIG_COMPILER_OPTIMIZATION_SIZE: y
 
@@ -59,6 +60,9 @@ font:
     id: liberationsans_48
     size: 48
   - file: "LiberationSans.ttf"
+    id: liberationsans_36
+    size: 36
+  - file: "LiberationSans.ttf"
     id: liberationsans_24
     size: 24
   - file: "LiberationSans.ttf"
@@ -76,20 +80,51 @@ binary_sensor:
       mode:
         input: true
         pullup: true
-    name: "T-Display Button Input 0"
     id: tdisplay_button_input_0
+    filters:
+      - delayed_on: 100ms
+      - delayed_off: 100ms
+    on_press:
+      then:
+        - if:
+            condition:
+              - script.is_running: main_loop
+            then:
+              - logger.log: Script is running, can't rewind page
+            else:
+              - globals.set:
+                  id: currpage
+                  value: !lambda |-
+                    int newpage = id(currpage) - 2;
+                    if ((newpage >= id(pagecount)) || (newpage < 0)) {
+                      return id(pagecount) - 1;
+                    } else {
+                      return id(currpage) - 2;
+                    }
+              - script.execute: main_loop
   - platform: gpio
     pin:
       number: GPIO35
       inverted: true
-    name: "T-Display Button Input 1"
     id: tdisplay_button_input_1
+    filters:
+      - delayed_on: 100ms
+      - delayed_off: 100ms
+    on_press:
+      then:
+        - if:
+            condition:
+              - script.is_running: main_loop
+            then:
+              - logger.log: Script is running, can't next page
+            else:
+              - script.execute: main_loop
 
 switch:
   - platform: gpio
     pin: GPIO4
-    name: "Backlight"
     id: backlight
+    internal: true
 
 time:
   - platform: homeassistant
@@ -103,29 +138,29 @@ esp32_ble_tracker:
 
 sensor:
   - platform: xiaomi_hhccjcy01
-    mac_address: 'C4:7C:8D:6C:A2:8D'
+    mac_address: "C4:7C:8D:6C:A2:8D"
     temperature:
-      name: "Coleus Temperature"
-      id: ble_temp
+      name: "Basil Temperature"
+      id: basil_temp
     moisture:
-      name: "Coleus Moisture"
-      id: ble_moist
+      name: "Basil Moisture"
+      id: basil_moist
     illuminance:
-      name: "Coleus Illuminance"
-      id: ble_light
+      name: "Basil Illuminance"
+      id: basil_light
     conductivity:
-      name: "Coleus Soil Conductivity"
-      id: ble_soilv
-
-interval:
-  - interval: 15s
-    then:
-      - display.page.show_next: my_display
-      - component.update: my_display
+      name: "Basil Soil Conductivity"
+      id: basil_soilv
 
 image:
   - file: "img/water-percent.png"
-    id: 'water_percent'
+    id: "water_percent"
+    type: GRAYSCALE
+  - file: "img/thermometer.png"
+    id: "thermometer"
+    type: GRAYSCALE
+  - file: "img/brightness.png"
+    id: "brightness"
     type: GRAYSCALE
 
 # display is 240x135
@@ -146,10 +181,7 @@ display:
           it.strftime((240 / 2), (140 / 3) * 1 + 5, id(liberationsans_24), id(my_gray), TextAlign::CENTER, "%Y-%m-%d", id(esptime).now());
           it.strftime((240 / 2), (140 / 3) * 2 + 5, id(liberationsans_48), id(my_gray), TextAlign::CENTER, "%H:%M", id(esptime).now());
           it.print(5, 5, id(liberationsans_12), id(my_yellow), TextAlign::TOP_LEFT, "ESPHome");
-
-          // Comment out the above lines to see the image without text overlaid
-          // it.image(0, 0, id(my_image));
-
+          
           if (id(system_status).state) {
             it.print(235, 5, id(liberationsans_12), id(my_green), TextAlign::TOP_RIGHT, "Online");
           }
@@ -163,10 +195,145 @@ display:
 
           it.strftime(235,5, id(liberationsans_12), id(my_gray), TextAlign::TOP_RIGHT, "%Y-%m-%d", id(esptime).now());
           it.strftime(5, 5, id(liberationsans_12), id(my_gray), TextAlign::TOP_LEFT, "%H:%M:%S", id(esptime).now());
-          // it.strftime((240 / 2), (140 / 3) * 1 + 5, id(liberationsans_24), id(my_gray), TextAlign::CENTER, "%Y-%m-%d", id(esptime).now());
-          // it.strftime((240 / 2), (140 / 3) * 2 + 5, id(liberationsans_48), id(my_gray), TextAlign::CENTER, "%H:%M:%S", id(esptime).now());
-
-          // Comment out the above lines to see the image without text overlaid
+          
           it.image(10, 30, id(water_percent));
-          it.print(85, 30, id(liberationsans_24), id(my_gray), TextAlign::TOP_LEFT, "Coleus");
-          it.printf(85, (140 / 3) * 1 + 30, id(liberationsans_48),id(my_gray), TextAlign::TOP_LEFT, "%.0f %%", id(ble_moist).state );
+          std::string sensor_title = id(sensortitle).state;
+          it.printf(85, 30, id(liberationsans_24), id(my_gray), TextAlign::TOP_LEFT, sensor_title.c_str());
+          it.printf(85, (140 / 3) * 1 + 30, id(liberationsans_48),id(my_gray), TextAlign::TOP_LEFT, "%.0f %%", id(sensorfloat) );
+      - id: temp_page
+        lambda: |-
+          it.rectangle(0,  0, it.get_width(), it.get_height(), id(my_blue));
+          it.rectangle(0, 20, it.get_width(), it.get_height(), id(my_blue));   // header bar
+
+          it.strftime(235,5, id(liberationsans_12), id(my_gray), TextAlign::TOP_RIGHT, "%Y-%m-%d", id(esptime).now());
+          it.strftime(5, 5, id(liberationsans_12), id(my_gray), TextAlign::TOP_LEFT, "%H:%M:%S", id(esptime).now());
+          
+          it.image(10, 30, id(thermometer));
+          std::string sensor_title = id(sensortitle).state;
+          it.printf(85, 30, id(liberationsans_24), id(my_gray), TextAlign::TOP_LEFT, sensor_title.c_str());
+          float temp_f = id(sensorfloat) * (9.0/5.0) + 32.0;
+          it.printf(85, (140 / 3) * 1 + 30, id(liberationsans_48),id(my_gray), TextAlign::TOP_LEFT, "%.0f °F", temp_f );
+      - id: lux_page
+        lambda: |-
+          it.rectangle(0,  0, it.get_width(), it.get_height(), id(my_blue));
+          it.rectangle(0, 20, it.get_width(), it.get_height(), id(my_blue));   // header bar
+
+          it.strftime(235,5, id(liberationsans_12), id(my_gray), TextAlign::TOP_RIGHT, "%Y-%m-%d", id(esptime).now());
+          it.strftime(5, 5, id(liberationsans_12), id(my_gray), TextAlign::TOP_LEFT, "%H:%M:%S", id(esptime).now());
+
+          it.image(10, 30, id(brightness));
+          std::string sensor_title = id(sensortitle).state;
+          it.printf(85, 30, id(liberationsans_24), id(my_gray), TextAlign::TOP_LEFT, sensor_title.c_str());
+          it.printf(85, (140 / 3) * 1 + 30, id(liberationsans_36),id(my_gray), TextAlign::TOP_LEFT, "%d lx", id(sensorint) );
+
+interval:
+  - interval: 60s
+    then:
+      - script.execute: main_loop
+
+globals:
+  - id: currpage
+    type: int
+    restore_value: no
+    initial_value: "0"
+  - id: pagecount
+    type: int
+    restore_value: no
+    initial_value: '5'
+  - id: sensorfloat
+    type: float
+    restore_value: no
+    initial_value: "0.0"
+  - id: sensorint
+    type: int
+    restore_value: no
+    initial_value: "0"
+text_sensor:
+  - id: sensortitle
+    platform: template
+    internal: true
+    lambda: |-
+      return {};
+  - id: sensortext
+    platform: template
+    internal: true
+    lambda: |-
+      return {};
+
+script:
+  - id: main_loop
+    then:
+      - if:
+          condition:
+            lambda: "return id(currpage) == 0;"
+          then:
+            - logger.log: 'Displaying time page'
+            - display.page.show: time_page
+      - if:
+          condition:
+            lambda: |-
+              return id(currpage) == 1;
+          then:
+            - logger.log: 'Displaying Basil moisture page'
+            - text_sensor.template.publish: 
+                id: sensortitle
+                state: "Basil Soil"
+            - globals.set:
+                id: sensorfloat
+                value: !lambda |-
+                  return id(basil_moist).state;
+            - display.page.show: moisture_page
+      - if:
+          condition:
+            lambda: |-
+              return id(currpage) == 2;
+          then:
+            - logger.log: 'Displaying Basil temp page'
+            - text_sensor.template.publish: 
+                id: sensortitle
+                state: "Basil Temp"
+            - globals.set:
+                id: sensorfloat
+                value: !lambda |-
+                  return id(basil_temp).state;
+            - display.page.show: temp_page
+      - if:
+          condition:
+            lambda: |-
+              return id(currpage) == 3;
+          then:
+            - logger.log: 'Displaying Basil lux page'
+            - text_sensor.template.publish: 
+                id: sensortitle
+                state: "Basil Lux"
+            - globals.set:
+                id: sensorint
+                value: !lambda |-
+                  return id(basil_light).state;
+            - display.page.show: lux_page
+      - if:
+          condition:
+            lambda: |-
+              return id(currpage) == 4;
+          then:
+            - logger.log: 'Displaying fake lux page'
+            - text_sensor.template.publish: 
+                id: sensortitle
+                state: "Fake Lux"
+            - globals.set:
+                id: sensorint
+                value: '1234'
+            - display.page.show: lux_page
+      - component.update: my_display
+      - globals.set:
+          id: currpage
+          value: !lambda |-
+            return id(currpage) += 1;
+      - if:
+          condition:
+            lambda: |-
+              return id(currpage) >= id(pagecount);
+          then:
+            - globals.set:
+                id: currpage
+                value: '0'
