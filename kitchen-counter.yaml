@@ -32,8 +32,9 @@ light:
     blue: output_component3
     cold_white: output_component4
     warm_white: output_component5
-    cold_white_color_temperature: 6536 K
-    warm_white_color_temperature: 2000 K
+    cold_white_color_temperature: 6500 K
+    warm_white_color_temperature: 1700 K
+    color_interlock: true
 
 # Example output entry
 output:
