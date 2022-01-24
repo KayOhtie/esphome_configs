@@ -138,6 +138,23 @@ esp32_ble_tracker:
   scan_parameters:
     active: false
 
+external_components:
+  - source: github://myhomeiot/esphome-components
+
+ble_gateway:
+  devices:
+    - mac_address: 58:2D:34:10:6F:D6 # Bedroom
+    - mac_address: 58:2D:34:10:70:6E # Living Room
+    - mac_address: 58:2D:34:10:74:70 # Office
+    - mac_address: 58:2D:34:39:6A:8E # Kitchen
+  on_ble_advertise:
+    then:
+      homeassistant.service:
+        service: ble_monitor.parse_data
+        data:
+          packet: !lambda return packet;
+          gateway_id: blerelay
+
 sensor:
   - platform: xiaomi_hhccjcy01
     mac_address: "C4:7C:8D:6C:A2:8D"
