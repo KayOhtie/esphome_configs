@@ -10,10 +10,10 @@ logger:
 api:
 
 ota:
-  password: "f1b07218b4dac52a445fa0c1e6c8e922"
+  password: !secret kitchen_counter_ota
 
 wifi:
-  ssid: !secret wifi_network
+  ssid: !secret wifi_ssid
   password: !secret wifi_password
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
