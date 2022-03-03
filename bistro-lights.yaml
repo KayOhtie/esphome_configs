@@ -32,6 +32,10 @@ uart:
    tx_pin: GPIO1
    baud_rate: 9600
 
+time:
+  - platform: homeassistant
+    id: esptime
+
 # [00:51:53][C][tuya:028]: Tuya:
 # [00:51:53][C][tuya:039]:   Datapoint 1: switch (value: OFF)
 # [00:51:53][C][tuya:041]:   Datapoint 2: int value (value: 653)
@@ -42,6 +46,7 @@ uart:
 
 # Register the Tuya MCU connection
 tuya:
+  time_id: esptime
 
 light:
   - platform: "tuya"

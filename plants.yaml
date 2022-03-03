@@ -140,6 +140,7 @@ esp32_ble_tracker:
 
 external_components:
   - source: github://myhomeiot/esphome-components
+    components: [ ble_gateway ]
 
 ble_gateway:
   devices:
