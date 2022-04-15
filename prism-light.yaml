@@ -41,7 +41,7 @@ tuya:
       datapoint_type: any
       then:
         - lambda: |-
-            return false;
+            return;
 
 # power: 20
 # brightness: 22

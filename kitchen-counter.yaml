@@ -1,7 +1,7 @@
 esphome:
   name: kitchen-counter
   platform: ESP8266
-  board: esp01_1m
+  board: esp12e
 
 # Enable logging
 logger:
@@ -26,7 +26,7 @@ captive_portal:
 light:
   - platform: rgbww
     name: "Kitchen Counter Light"
-    id: kitchen_counter_light
+    id: "counter_light"
     red: output_component1
     green: output_component2
     blue: output_component3
@@ -58,9 +58,13 @@ output:
 binary_sensor:
   - platform: gpio
     pin: GPIO0
-    name: "Button"
     id: "button"
-    internal: true
+    filters:
+      - delayed_on: 10ms
     on_press:
       then:
-        - light.toggle: kitchen_counter_light
+        - logger.log: "button pushed"
+        - light.toggle: 
+            id: counter_light
+            transition_length: 500ms
+        - logger.log: "light toggled"
