@@ -36,12 +36,12 @@ time:
     id: esptime
 tuya:
   time_id: esptime
-  on_datapoint_update:
-    - sensor_datapoint: 24
-      datapoint_type: any
-      then:
-        - lambda: |-
-            return false;
+  # on_datapoint_update:
+  #   - sensor_datapoint: 24
+  #     datapoint_type: any
+  #     then:
+  #       - lambda: |-
+  #           return;
 
 # power: 20
 # brightness: 22
@@ -71,4 +71,17 @@ light:
     max_value: 1000
     cold_white_color_temperature: 6500K
     warm_white_color_temperature: 2700K
-    
+    effects:
+      - lambda:
+          name: Hyperion
+          update_interval: 1s
+          lambda: |-
+            ESP_LOGD("Button","Enter function");
+            const std::string pattern = "0b10320003001c03e803e800000000012c03c003e80000000000c703e803e800000000";
+            uint8_t dp = 101;
+            ESP_LOGD("Button","Attempting to write");
+            tuya::Tuya tmcu;
+            tmcu.set_string_datapoint_value(dp, pattern);
+# tuya::Tuya tuyamcu;
+# tuyamcu.set_string_datapoint_value(dp, pattern);
+# ESP_LOGD("Button","Wrote!");
