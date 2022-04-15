@@ -57,6 +57,27 @@ tuya:
 #   pt: pattern, 0x[solid,up,down,center,stripe,out,in,rot,spiral]
 #   HSV: 0x0168, 0x03e8, (0x000a:0x03e8)
 #   effect_bytes: {id}{sp}{mo}{pt}[colors:{hue}{sat}{vals}0000]
+globals:
+  - id: pattern
+    type: std::string
+    restore_value: no
+    initial_value: ''
+
+script:
+  - id: set_pattern
+    then:
+      - lambda: |-
+          ESP_LOGD("set_pattern","Attempting to write");
+          tuya_tuya->set_string_datapoint_value(101, id(pattern));
+          tuya_tuya->set_enum_datapoint_value(21,2);
+  - id: stop_pattern
+    then:
+      - lambda: |-
+          tuya_tuya->set_enum_datapoint_value(21,1);
+# ESP_LOGD("set_pattern","Enter function, copying pattern data");
+# const std::string cpattern = id(pattern);
+
+
 light:
   - platform: tuya
     name: Prism
@@ -71,17 +92,45 @@ light:
     max_value: 1000
     cold_white_color_temperature: 6500K
     warm_white_color_temperature: 2700K
+    on_state:
+      - if:
+          condition:
+            lambda: 'return id(prism).get_effect_name() == "None";'
+          then:
+            - script.execute: stop_pattern
     effects:
       - lambda:
           name: Hyperion
           update_interval: 1s
           lambda: |-
-            ESP_LOGD("Button","Enter function");
-            const std::string pattern = "0b10320003001c03e803e800000000012c03c003e80000000000c703e803e800000000";
-            uint8_t dp = 101;
-            ESP_LOGD("Button","Attempting to write");
-            tuya::Tuya tmcu;
-            tmcu.set_string_datapoint_value(dp, pattern);
+            id(pattern) = "10320003001c03e803e800000000012c03c003e80000000000c703e803e800000000";
+            id(set_pattern).execute();
+      - lambda:
+          name: Hypnotize
+          update_interval: 1s
+          lambda: |-
+            id(pattern) = "083c0001000003e803e800000000001e03e803e800000000003c03e803e800000000007803e803e80000000000b403e803e80000000000f003e803e800000000010e03e803e800000000012c03e803e800000000";
+            id(set_pattern).execute();
+      - lambda:
+          name: Vortex
+          update_interval: 1s
+          lambda: |-
+            id(pattern) = "09640008000003e803e800000000001e03e803e800000000003c03e803e800000000007803e803e80000000000b403e803e80000000000f003e803e800000000010e03e803e800000000012c03e803e800000000";
+            id(set_pattern).execute();
+      - lambda:
+          name: Sunset
+          update_interval: 1s
+          lambda: |-
+            id(pattern) = "0b280002000003e803e800000000000003e803e800000000001e03e803e800000000001e03e803e800000000003c03e803e800000000003c03e803e800000000";
+            id(set_pattern).execute();
 # tuya::Tuya tuyamcu;
 # tuyamcu.set_string_datapoint_value(dp, pattern);
 # ESP_LOGD("Button","Wrote!");
+button:
+  - platform: template
+    name: Hypnotize
+    on_press:
+      - lambda: |-
+          const std::string cpattern = "083c0001000003e803e800000000001e03e803e800000000003c03e803e800000000007803e803e80000000000b403e803e80000000000f003e803e800000000010e03e803e800000000012c03e803e800000000";
+          tuya_tuya->set_string_datapoint_value(101, cpattern);
+          tuya_tuya->set_enum_datapoint_value(21,2);
