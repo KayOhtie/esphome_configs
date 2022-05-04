@@ -5,7 +5,7 @@ colors = sys.argv[1:]
 outstr = ""
 try:
     for color in colors:
-        rgb = map(lambda x:int(x,16)/255.0, wrap(color,2))
+        rgb = [int(x,16)/255.0 for x in wrap(color,2)]
         hsv = rgb_to_hsv(*rgb)
         h = int(hsv[0] * 360)
         s = int(hsv[1] * 1000)
