@@ -10,7 +10,6 @@ logger:
 
 # Enable Home Assistant API
 api:
-  password: ""
   services:
     - service: set_manual_effect
       variables:
@@ -20,9 +19,10 @@ api:
             id: pattern
             value: !lambda 'return effect_string;'
         - script.execute: set_pattern
+  password: !secret prism_light_ota
 
 ota:
-  password: ""
+  password: !secret prism_light_ota
 
 wifi:
   ssid: !secret wifi_ssid

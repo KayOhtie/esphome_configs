@@ -15,7 +15,7 @@ logger:
 
 # Enable Home Assistant API
 api:
-  password: ""
+  password: !secret plants_ota
 
 ota:
   password: !secret plants_ota

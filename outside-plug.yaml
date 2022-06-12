@@ -9,7 +9,7 @@ logger:
 
 # Enable Home Assistant API
 api:
-  password: ""
+  password: !secret outside_plug_ota
 
 ota:
   password: !secret outside_plug_ota

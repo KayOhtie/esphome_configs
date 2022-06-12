@@ -8,10 +8,10 @@ logger:
 
 # Enable Home Assistant API
 api:
-  password: ""
+  password: !secret desk_lamp_ota
 
 ota:
-  password: ""
+  password: !secret desk_lamp_ota
 
 wifi:
   ssid: !secret wifi_ssid

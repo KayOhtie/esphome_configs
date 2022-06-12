@@ -1,7 +1,7 @@
 esphome:
   name: kitchen-counter
   platform: ESP8266
-  board: esp12e
+  board: esp01_1m
 
 # Enable logging
 logger:
