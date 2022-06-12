@@ -11,6 +11,15 @@ logger:
 # Enable Home Assistant API
 api:
   password: ""
+  services:
+    - service: set_manual_effect
+      variables:
+        effect_string: string
+      then:
+        - globals.set:
+            id: pattern
+            value: !lambda 'return effect_string;'
+        - script.execute: set_pattern
 
 ota:
   password: ""
@@ -22,7 +31,7 @@ wifi:
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "Prism-Light Fallback Hotspot"
-    password: "lLTlK5z1u4Lo"
+    password: !secret prism-fallback
 
 captive_portal:
 
@@ -30,18 +39,11 @@ uart:
    rx_pin: GPIO3
    tx_pin: GPIO1
    baud_rate: 9600
-
 time:
   - platform: homeassistant
     id: esptime
 tuya:
   time_id: esptime
-  on_datapoint_update:
-    - sensor_datapoint: 24
-      datapoint_type: any
-      then:
-        - lambda: |-
-            return;
 
 # power: 20
 # brightness: 22
@@ -49,14 +51,51 @@ tuya:
 # color_temp: 23
 #   range: 2700-6500
 # color_mode: 21
+#   0: white
+#   1: color
+#   2: scene
+#   3: music
 # color: 24
 # scene: 101
+#   Note: every value is a hex string representation of the byte for the value
 #   id: any byte
-#   sp: speed, 0x64
-#   mo: mode, 0x[fade,flash,music]
-#   pt: pattern, 0x[solid,up,down,center,stripe,out,in,rot,spiral]
-#   HSV: 0x0168, 0x03e8, (0x000a:0x03e8)
+#   sp: speed, 0-100
+#   mo: mode
+#     0: fade
+#     1: flash
+#     2: music
+#   pt: pattern, index of [solid,up,down,center,stripe,out,in,rot,spiral]
+#   HSV: 0-360, 0-1000, 10-1000
 #   effect_bytes: {id}{sp}{mo}{pt}[colors:{hue}{sat}{vals}0000]
+globals:
+  - id: pattern
+    type: std::string
+    restore_value: no
+    initial_value: ''
+script:
+  - id: set_pattern
+    then:
+      - lambda: |-
+          tuya_tuya->set_string_datapoint_value(101, id(pattern));
+          tuya_tuya->set_enum_datapoint_value(21,2);
+          id(blank_effect).execute();
+  - id: stop_pattern
+    then:
+      - lambda: |-
+          tuya_tuya->set_enum_datapoint_value(21,1);
+  - id: blank_effect
+    then:
+      - lambda: |-
+          auto call = id(prism).turn_on();
+          call.set_effect("None");
+          call.perform();
+button:
+  - platform: template
+    name: Stop Pattern
+    on_press:
+      - script.execute: stop_pattern
+      - script.execute: blank_effect
+
 light:
   - platform: tuya
     name: Prism
@@ -67,8 +106,54 @@ light:
     hsv_datapoint: 24
     color_temperature_datapoint: 23
     color_temperature_max_value: 255
-    min_value: 10
+    min_value: 25
     max_value: 1000
     cold_white_color_temperature: 6500K
     warm_white_color_temperature: 2700K
-    
+    color_interlock: true
+    # on_state: # This isn't working correctly yet because it'll fire repeatedly and screw up color->white, softlock basically
+    #   - if:
+    #       condition:
+    #         lambda: 'return id(prism).get_effect_name() == "None";'
+    #       then:
+    #         - script.execute: stop_pattern
+    effects:
+      - lambda:
+          name: Stop Effect
+          lambda: |-
+            id(stop_pattern).execute();
+            id(blank_effect).execute();
+      # Hypnotize, Vortex, and Sunset are all normally built-in; haven't tried invoking directly by ID
+      # Hyperion is custom as an example of a custom one.
+      # Would really like to figure out how to get addressable color selection working in HA:
+      #   Pick multiple colors, speed, mode, animation pattern, and it works
+      - lambda:
+          name: Hyperion
+          update_interval: 1s
+          lambda: |-
+            id(pattern) = "10320003001c03e803e800000000012c03c003e80000000000c703e803e800000000";
+            id(set_pattern).execute();
+      - lambda:
+          name: Hypnotize
+          update_interval: 1s
+          lambda: |-
+            id(pattern) = "083c0001000003e803e800000000001e03e803e800000000003c03e803e800000000007803e803e80000000000b403e803e80000000000f003e803e800000000010e03e803e800000000012c03e803e800000000";
+            id(set_pattern).execute();
+      - lambda:
+          name: Vortex
+          update_interval: 1s
+          lambda: |-
+            id(pattern) = "09640008000003e803e800000000001e03e803e800000000003c03e803e800000000007803e803e80000000000b403e803e80000000000f003e803e800000000010e03e803e800000000012c03e803e800000000";
+            id(set_pattern).execute();
+      - lambda:
+          name: Sunset
+          update_interval: 1s
+          lambda: |-
+            id(pattern) = "0b280002000003e803e800000000000003e803e800000000001e03e803e800000000001e03e803e800000000003c03e803e800000000003c03e803e800000000";
+            id(set_pattern).execute();
+      - lambda:
+          name: Frigid
+          update_interval: 1s
+          lambda: |-
+            id(pattern) = "0c28000100b403e803e80000000000f003e803e800000000010e03e803e8000000000000000003e800000000";
+            id(set_pattern).execute();
