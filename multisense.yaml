@@ -1,0 +1,57 @@
+esphome:
+  name: multisense
+
+esp8266:
+  board: d1_mini_lite
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+# api:
+#   password: ""
+
+ota:
+  password: ""
+
+wifi:
+  ssid: "Yap House"
+  password: "squeakthec0y0te"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Multisense Fallback Hotspot"
+    password: "squeakysensor"
+
+captive_portal:
+
+web_server:
+  port: 80
+
+i2c:
+
+sensor:
+  - platform: bme280
+    temperature:
+      name: "BME280 Temperature"
+      oversampling: 16x
+    pressure:
+      name: "BME280 Pressure"
+    humidity:
+      name: "BME280 Humidity"
+    address: 0x76
+    update_interval: 60s
+  - platform: dht
+    pin: D5
+    temperature:
+      name: "Standalone Temperature"
+    humidity:
+      name: "Standalone Humidity"
+    update_interval: 60s
+  - platform: dht
+    pin: D6
+    temperature:
+      name: "Paired Temperature"
+    humidity:
+      name: "Paired Humidity"
+    update_interval: 60s
