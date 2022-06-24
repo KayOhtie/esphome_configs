@@ -27,6 +27,10 @@ captive_portal:
 
 web_server:
   port: 80
+  css_include: inc/webserver.min.css
+  js_include: inc/webserver.min.js
+  ota: false
+  include_internal: true
 
 i2c:
 
@@ -35,23 +39,32 @@ sensor:
     temperature:
       name: "BME280 Temperature"
       oversampling: 16x
+      unit_of_measurement: "°F"
+      filters:
+        - lambda: return x * (9.0/5.0) + 32.0;
     pressure:
       name: "BME280 Pressure"
     humidity:
       name: "BME280 Humidity"
     address: 0x76
-    update_interval: 60s
+    update_interval: 5s
   - platform: dht
     pin: D5
     temperature:
       name: "Standalone Temperature"
+      unit_of_measurement: "°F"
+      filters:
+        - lambda: return x * (9.0/5.0) + 32.0;
     humidity:
       name: "Standalone Humidity"
-    update_interval: 60s
+    update_interval: 5s
   - platform: dht
     pin: D6
     temperature:
       name: "Paired Temperature"
+      unit_of_measurement: "°F"
+      filters:
+        - lambda: return x * (9.0/5.0) + 32.0;
     humidity:
       name: "Paired Humidity"
-    update_interval: 60s
+    update_interval: 5s
