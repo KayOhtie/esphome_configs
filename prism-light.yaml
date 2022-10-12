@@ -31,7 +31,7 @@ wifi:
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "Prism-Light Fallback Hotspot"
-    password: !secret prism-fallback
+    password: !secret prism_light_ota
 
 captive_portal:
 
