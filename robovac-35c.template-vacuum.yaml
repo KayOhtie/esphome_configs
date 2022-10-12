@@ -1,0 +1,45 @@
+friendly_name: Robovac
+unique_id: robovacesphome
+value_template: "{{ states('sensor.robovac_35c_status') }}"
+battery_level_template: "{{ states('sensor.robovac_35c_battery') | int }}"
+fan_speed_template: "{{ states('select.robovac_35c_fan_speed') }}"
+attribute_templates:
+  error: "{{ states('sensor.robovac_35c_error') }}"
+availability_template: "{{ states('binary_sensor.robovac_35c_power') }}"
+start:
+  service: switch.turn_on
+  target:
+    entity_id: switch.robovac_35c_play_pause
+pause:
+  service: switch.turn_off
+  target:
+    entity_id: switch.robovac_35c_play_pause
+stop:
+  service: switch.turn_off
+  target:
+    entity_id: switch.robovac_35c_play_pause
+return_to_base:
+  service: button.press
+  target:
+    entity_id: button.robovac_35c_go_home
+clean_spot:
+  service: select.select_option
+  target:
+    entity_id: select.robovac_35c_mode
+  data:
+    option: Quick
+locate:
+  service: button.press
+  target:
+    entity_id: button.robovac_35c_locate_vacuum
+set_fan_speed:
+  service: select.select_option
+  target:
+    entity_id: select.robovac_35c_fan_speed
+  data:
+    option: "{{ fan_speed }}"
+fan_speeds:
+  - Standard
+  - BoostIQ
+  - Max
+  - 'Off'
