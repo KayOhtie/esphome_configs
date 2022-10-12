@@ -1,0 +1,69 @@
+# Basic Config
+esphome:
+  name: coffee-grinder
+  platform: ESP8266
+  board: esp01_1m
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+  baud_rate: 0 # (UART logging interferes with cse7766)
+  
+# Remove this line if you're not using Home Assistsant or your switch will restart every now and again
+api:
+
+ota:
+
+# Device Specific Config
+
+uart:
+  rx_pin: RX
+  baud_rate: 4800
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    id: button
+    on_press:
+      - switch.toggle: relay
+  - platform: status
+    name: "Coffee Grinder Status"
+
+sensor:
+  # - platform: wifi_signal
+  #   name: "Coffee Grinder WiFi Signal"
+  #   update_interval: 60s
+  - platform: cse7766
+    update_interval: 1s
+    current:
+      name: "Coffee Grinder Current"
+      accuracy_decimals: 1
+    voltage:
+      name: "Coffee Grinder Voltage"
+      accuracy_decimals: 1
+    power:
+      name: "Coffee Grinder Power"
+      accuracy_decimals: 1
+      id: my_power
+  # - platform: total_daily_energy
+  #   name: "Coffee Grinder Daily Energy"
+  #   power_id: my_power
+
+switch:
+  - platform: gpio
+    name: "Coffee Grinder"
+    pin: GPIO12
+    id: relay
+    restore_mode: ALWAYS_OFF
+
+# time:
+#   - platform: sntp
+#     id: my_time
+
+status_led:
+  pin: GPIO13

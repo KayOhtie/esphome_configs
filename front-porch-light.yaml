@@ -1,0 +1,123 @@
+substitutions:
+  device_name: front_porch_light
+  friendly_name: Front Porch Light
+  icon: "mdi:light-switch"
+
+esphome:
+  name: front-porch-light
+  platform: ESP8266
+  board: esp01_1m
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  ap:
+    ssid: ${device_name}
+    password: !secret esphome_ap_password
+
+logger:
+
+api:
+  password: !secret esphome_api_password
+
+ota:
+  password: !secret esphome_ota_password
+
+output:
+  - platform: gpio
+    pin: GPIO12
+    id: switch_output
+
+  - platform: gpio
+    pin:
+      number: GPIO4
+    id: white_led_output
+
+light:
+  - platform: binary
+    name: ${friendly_name}
+    id: ${device_name}
+    output: switch_output
+    on_turn_off:
+      - light.turn_off: white_led
+    on_turn_on:
+      - light.turn_on: white_led
+
+  - platform: binary
+    id: white_led
+    output: white_led_output
+
+  - platform: status_led
+    id: status
+    pin: 
+      number: GPIO5
+      inverted: true
+
+script:
+  - id: blink_white
+    mode: queued
+    then:
+      - light.toggle: status
+      - delay: 100ms
+      - light.toggle: status
+      - delay: 100ms
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO13
+      inverted: True
+    id: button
+    name: ${friendly_name} Button
+    on_multi_click:
+   # Single Click:
+    - timing:
+      - ON for at most 1s
+      - OFF for at least 0.3s
+      then:
+        - light.toggle: ${device_name}
+        - logger.log: "Single Click"
+        - homeassistant.event:
+            event: esphome.${device_name}
+            data:
+              type: single_click
+   # Double Click:
+    - timing:
+      - ON for at most 1s
+      - OFF for at most 1s
+      - ON for at most 1s
+      - OFF for at least 0.2s
+      then:
+        - logger.log: "Double Clicked"
+        - homeassistant.event:
+            event: esphome.${device_name}
+            data:
+              type: double_click
+        - script.execute: blink_white
+        - script.execute: blink_white
+    # Long Press:
+    - timing:
+      - ON for 1s to 2s
+      - OFF for at least 0.3s
+      then:
+        - logger.log: "Single Long Press"
+        - homeassistant.event:
+            event: esphome.${device_name}
+            data:
+              type: long_press
+        - script.execute: blink_white
+        - script.execute: blink_white
+        - script.execute: blink_white
+    - timing:
+      - ON for at least 2.2s
+      then:
+        - logger.log: "Press and Hold"
+        - homeassistant.event:
+            event: esphome.${device_name}
+            data:
+              type: hold
+        - script.execute: blink_white
+        - script.execute: blink_white
+        - script.execute: blink_white
+        - script.execute: blink_white
+    internal: True

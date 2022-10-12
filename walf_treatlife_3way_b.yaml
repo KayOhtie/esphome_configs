@@ -1,0 +1,19 @@
+substitutions:
+  device_name: treatlife-3way
+  event_name: ${device_name}-b
+  friendly_name: 3 Way Light Switch B
+  icon: "mdi:light-switch"
+
+packages:
+  device_base: !include inc/treatlife_3_way.yaml
+
+wifi:
+  ap:
+    password: !secret walf_secret
+
+captive_portal:
+logger:
+api:
+
+ota:
+

@@ -1,0 +1,35 @@
+esphome:
+  name: ${device_name}
+  name_add_mac_suffix: true
+  platform: ESP8266
+  board: esp01_1m
+
+output:
+ - platform: esp8266_pwm
+   id: output_red
+   pin: GPIO4
+ - platform: esp8266_pwm
+   id: output_green
+   pin: GPIO12
+ - platform: esp8266_pwm
+   id: output_blue
+   pin: GPIO14
+ - platform: esp8266_pwm
+   id: output_warm_white
+   pin: GPIO13
+ - platform: esp8266_pwm
+   id: output_cold_white
+   pin: GPIO5
+
+# Define a light entity
+light:
+  - platform: rgbww
+    name: teckin_13w_rgbww
+    id: teckin_13w_rgbww
+    red: output_red
+    green: output_green
+    blue: output_blue
+    warm_white: output_warm_white
+    cold_white: output_cold_white
+    cold_white_color_temperature: 6200 K
+    warm_white_color_temperature: 2800 K
