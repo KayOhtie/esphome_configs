@@ -138,39 +138,24 @@ esp32_ble_tracker:
   scan_parameters:
     active: false
 
-external_components:
-  - source: github://myhomeiot/esphome-components
-    components: [ ble_gateway ]
+# external_components:
+#   - source: github://myhomeiot/esphome-components
+#     components: [ ble_gateway ]
 
-ble_gateway:
-  devices:
-    - mac_address: 58:2D:34:10:6F:D6 # Bedroom
-    - mac_address: 58:2D:34:10:70:6E # Living Room
-    - mac_address: 58:2D:34:10:74:70 # Office
-    - mac_address: 58:2D:34:39:6A:8E # Kitchen
-  on_ble_advertise:
-    then:
-      homeassistant.service:
-        service: ble_monitor.parse_data
-        data:
-          packet: !lambda return packet;
-          gateway_id: blerelay
+# ble_gateway:
+#   devices:
+#     - mac_address: 58:2D:34:10:6F:D6 # Bedroom
+#     - mac_address: 58:2D:34:10:70:6E # Living Room
+#     - mac_address: 58:2D:34:10:74:70 # Office
+#     - mac_address: 58:2D:34:39:6A:8E # Kitchen
+#   on_ble_advertise:
+#     then:
+#       homeassistant.service:
+#         service: ble_monitor.parse_data
+#         data:
+#           packet: !lambda return packet;
+#           gateway_id: blerelay
 
-sensor:
-  - platform: xiaomi_hhccjcy01
-    mac_address: "C4:7C:8D:6C:A2:8D"
-    temperature:
-      name: "Basil Temperature"
-      id: basil_temp
-    moisture:
-      name: "Basil Moisture"
-      id: basil_moist
-    illuminance:
-      name: "Basil Illuminance"
-      id: basil_light
-    conductivity:
-      name: "Basil Soil Conductivity"
-      id: basil_soilv
 
 image:
   - file: "img/water-percent.png"
@@ -294,42 +279,42 @@ script:
             lambda: |-
               return id(currpage) == 1;
           then:
-            - logger.log: 'Displaying Basil moisture page'
+            - logger.log: 'Displaying Coleus moisture page'
             - text_sensor.template.publish: 
                 id: sensortitle
-                state: "Basil Soil"
+                state: "Coleus Soil"
             - globals.set:
                 id: sensorfloat
                 value: !lambda |-
-                  return id(basil_moist).state;
+                  return id(coleus_moist).state;
             - display.page.show: moisture_page
       - if:
           condition:
             lambda: |-
               return id(currpage) == 2;
           then:
-            - logger.log: 'Displaying Basil temp page'
+            - logger.log: 'Displaying Coleus temp page'
             - text_sensor.template.publish: 
                 id: sensortitle
-                state: "Basil Temp"
+                state: "Coleus Temp"
             - globals.set:
                 id: sensorfloat
                 value: !lambda |-
-                  return id(basil_temp).state;
+                  return id(coleus_temp).state;
             - display.page.show: temp_page
       - if:
           condition:
             lambda: |-
               return id(currpage) == 3;
           then:
-            - logger.log: 'Displaying Basil lux page'
+            - logger.log: 'Displaying Coleus lux page'
             - text_sensor.template.publish: 
                 id: sensortitle
-                state: "Basil Lux"
+                state: "Coleus Lux"
             - globals.set:
                 id: sensorint
                 value: !lambda |-
-                  return id(basil_light).state;
+                  return id(coleus_light).state;
             - display.page.show: lux_page
       - component.update: my_display
       - globals.set:
@@ -344,3 +329,18 @@ script:
             - globals.set:
                 id: currpage
                 value: '0'
+sensor:
+  - platform: xiaomi_hhccjcy01
+    mac_address: "C4:7C:8D:6C:A2:8D"
+    temperature:
+      name: "Coleus Temperature"
+      id: coleus_temp
+    moisture:
+      name: "Coleus Moisture"
+      id: coleus_moist
+    illuminance:
+      name: "Coleus Illuminance"
+      id: coleus_light
+    conductivity:
+      name: "Coleus Soil Conductivity"
+      id: coleus_soilv
