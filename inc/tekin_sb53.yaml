@@ -1,5 +1,5 @@
 esphome:
-  name: ${device_name}
+  name: teckin-br30
   name_add_mac_suffix: true
   platform: ESP8266
   board: esp01_1m
