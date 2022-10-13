@@ -1,3 +1,14 @@
+## Update ESPHome Secrets
+# Updates the secrets.yaml file for esphome via Bitwarden
+#
+# This script assumes three things:
+#  1) That you have the 'bw' command-line bitwarden binary in your path
+#  2) That you've already logged into Bitwarden via this binary
+#  3) That you've created a secure note item in Bitwarden and added at least one custom field to it.
+#
+# You can delete the extra custom field afterward, and I'll make modifications to support NOT having this later
+#  nor having a note with a default name, but for right now, this is required. Set note_id below to the UUID for yours.
+
 import requests, yaml, subprocess, os, pytz, sys
 from pathlib import Path
 from datetime import datetime
