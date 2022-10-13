@@ -8,6 +8,7 @@
 #
 # You can delete the extra custom field afterward, and I'll make modifications to support NOT having this later
 #  nor having a note with a default name, but for right now, this is required. Set note_id below to the UUID for yours.
+# Set the localtz to the appropriate name for your timezone.
 
 import requests, yaml, subprocess, os, pytz, sys
 from pathlib import Path
@@ -17,6 +18,7 @@ from socket import socket, AF_INET, SOCK_STREAM
 
 bw_port = 42666
 note_id = "220ddfa8-9820-49a9-b525-af2d0002b861"
+localtz = 'US/Central'
 
 api_url = f"http://localhost:{bw_port}"
 
@@ -78,7 +80,7 @@ if len(overlaps) > 0:
 else:
     print("No overlaps, can merge safely!")
 file_mtime_raw = datetime.fromtimestamp(Path('secrets.yaml').stat().st_mtime)
-central = pytz.timezone('US/Central')
+central = pytz.timezone(localtz)
 file_mtime = central.localize(file_mtime_raw)
 bw_mtime = parser.isoparse(bw_note_info['revisionDate'])
 
