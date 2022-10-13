@@ -1,6 +1,7 @@
 import requests, yaml, subprocess, os, pytz, sys
 from pathlib import Path
 from datetime import datetime
+from dateutil import parser
 from socket import socket, AF_INET, SOCK_STREAM
 
 bw_port = 42666
@@ -62,13 +63,13 @@ bw_secret_keys = bw_secrets.keys()
 file_secret_keys = file_secrets.keys()
 overlaps = [x for x in bw_secret_keys if x in file_secret_keys and file_secrets[x] != bw_secrets[x]]
 if len(overlaps) > 0:
-    print(f"Found {len(overlaps)} mismatched overlapped keys")
+    print(f"Found {len(overlaps)} mismatched overlapped keys: {overlaps}")
 else:
     print("No overlaps, can merge safely!")
 file_mtime_raw = datetime.fromtimestamp(Path('secrets.yaml').stat().st_mtime)
 central = pytz.timezone('US/Central')
 file_mtime = central.localize(file_mtime_raw)
-bw_mtime = datetime.fromisoformat(bw_note_info['revisionDate'])
+bw_mtime = parser.isoparse(bw_note_info['revisionDate'])
 
 all_secrets = {}
 if bw_mtime > file_mtime:
@@ -83,8 +84,6 @@ else:
         all_secrets[key] = bw_secrets[key]
     for key in file_secret_keys:
         all_secrets[key] = file_secrets[key]
-print(f"Local file: {file_mtime}")
-print(f"Bitwarden:  {bw_mtime}")
 
 key_count = len(all_secrets.keys())
 bw_note_info['fields'] = [{"name":x, "value": all_secrets[x], "type": 1} for x in all_secrets.keys()]
