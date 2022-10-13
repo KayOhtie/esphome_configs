@@ -9,6 +9,10 @@
 # You can delete the extra custom field afterward, and I'll make modifications to support NOT having this later
 #  nor having a note with a default name, but for right now, this is required. Set note_id below to the UUID for yours.
 # Set the localtz to the appropriate name for your timezone.
+#
+# ## WARNING ##
+# This is CURRENTLY a destructive script and WILL overwrite your local secrets.yaml file AND bitwarden entry without asking
+# You have been warned!
 
 import requests, yaml, subprocess, os, pytz, sys
 from pathlib import Path
