@@ -1,4 +1,5 @@
 substitutions:
   suffix: eeac9b
+
 packages:
-  device_base: !include TEMPLATE_teckin_sb53.yaml
+  device_base: !include teckin_sb53.yaml.template
