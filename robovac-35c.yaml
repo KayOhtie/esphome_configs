@@ -14,6 +14,8 @@ logger:
 # Enable Home Assistant API
 api:
 #  password: !secret robovac_ota_password
+  encryption:
+    key: !secret enc_robovac_35c
 
 ota:
   password: !secret robovac_ota_password

@@ -19,7 +19,8 @@ api:
             id: pattern
             value: !lambda 'return effect_string;'
         - script.execute: set_pattern
-  password: !secret prism_light_ota
+  encryption:
+    key: !secret enc_prism_light
 
 ota:
   password: !secret prism_light_ota

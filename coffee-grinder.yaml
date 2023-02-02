@@ -14,7 +14,7 @@ logger:
 # Remove this line if you're not using Home Assistsant or your switch will restart every now and again
 api:
   encryption:
-    key: !secret coffee_grinder_enc
+    key: !secret enc_coffee_grinder
 
 ota:
 

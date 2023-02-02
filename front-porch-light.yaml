@@ -20,7 +20,7 @@ logger:
 
 api:
   encryption:
-    key: !secret front_porch_light_enc
+    key: !secret enc_front_porch_light
 
 ota:
   password: !secret esphome_ota_password
