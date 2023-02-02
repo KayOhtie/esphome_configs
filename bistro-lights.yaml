@@ -10,7 +10,7 @@ logger:
 # Enable Home Assistant API
 api:
   encryption:
-    key: !secret bistro_lights_enc
+    key: !secret enc_bistro_lights
 ota:
   password: !secret bistro_ota
 
