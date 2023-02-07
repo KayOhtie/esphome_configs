@@ -1,0 +1,5 @@
+substitutions:
+  suffix: f230b0
+
+packages:
+  device_base: !include teckin_sb53.yaml.template

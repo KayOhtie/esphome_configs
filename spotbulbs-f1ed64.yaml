@@ -1,0 +1,5 @@
+substitutions:
+  suffix: f1ed64
+
+packages:
+  device_base: !include teckin_sb53.yaml.template

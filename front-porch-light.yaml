@@ -19,7 +19,8 @@ wifi:
 logger:
 
 api:
-  password: !secret esphome_api_password
+  encryption:
+    key: !secret enc_front_porch_light
 
 ota:
   password: !secret esphome_ota_password
