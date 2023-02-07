@@ -52,7 +52,7 @@ tuya:
                 case 1: return "paused";
                 case 2: return "idle";
                 case 3: return "docked";
-                case 4: return "returning";
+                case 4: return "docked";
                 case 5: return "returning";
                 default: return "error";
               };
