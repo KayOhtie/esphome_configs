@@ -4,11 +4,9 @@ esphome:
 esp8266:
   board: esp01_1m
 
-# Enable logging
-logger:
-  baud_rate: 0
+packages:
+  common: !include base/common.template.yaml
 
-# Enable Home Assistant API
 api:
   services:
     - service: set_manual_effect
@@ -19,22 +17,6 @@ api:
             id: pattern
             value: !lambda 'return effect_string;'
         - script.execute: set_pattern
-  encryption:
-    key: !secret enc_prism_light
-
-ota:
-  password: !secret prism_light_ota
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-  # Enable fallback hotspot (captive portal) in case wifi connection fails
-  ap:
-    ssid: "Prism-Light Fallback Hotspot"
-    password: !secret prism_light_ota
-
-captive_portal:
 
 uart:
    rx_pin: GPIO3

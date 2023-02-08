@@ -1,22 +1,14 @@
+substitutions:
+  friendly_name: Coffee Grinder
+
 # Basic Config
 esphome:
   name: coffee-grinder
   platform: ESP8266
   board: esp01_1m
 
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-logger:
-  baud_rate: 0 # (UART logging interferes with cse7766)
-  
-# Remove this line if you're not using Home Assistsant or your switch will restart every now and again
-api:
-  encryption:
-    key: !secret enc_coffee_grinder
-
-ota:
+packages:
+  common: !include common.template.yaml
 
 # Device Specific Config
 
@@ -30,42 +22,35 @@ binary_sensor:
       number: GPIO0
       mode: INPUT_PULLUP
       inverted: True
-    id: button
+    id: power_button
     on_press:
       - switch.toggle: relay
   - platform: status
-    name: "Coffee Grinder Status"
+    name: "${friendly_name} Status"
 
 sensor:
-  # - platform: wifi_signal
-  #   name: "Coffee Grinder WiFi Signal"
-  #   update_interval: 60s
   - platform: cse7766
     update_interval: 1s
     current:
-      name: "Coffee Grinder Current"
+      name: "${friendly_name} Current"
       accuracy_decimals: 1
     voltage:
-      name: "Coffee Grinder Voltage"
+      name: "${friendly_name} Voltage"
       accuracy_decimals: 1
     power:
-      name: "Coffee Grinder Power"
+      name: "${friendly_name} Power"
       accuracy_decimals: 1
       id: my_power
   # - platform: total_daily_energy
-  #   name: "Coffee Grinder Daily Energy"
+  #   name: "${friendly_name} Daily Energy"
   #   power_id: my_power
 
 switch:
   - platform: gpio
-    name: "Coffee Grinder"
+    name: "${friendly_name}"
     pin: GPIO12
     id: relay
     restore_mode: ALWAYS_OFF
-
-# time:
-#   - platform: sntp
-#     id: my_time
 
 status_led:
   pin: GPIO13
