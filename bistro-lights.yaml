@@ -6,7 +6,7 @@ esphome:
   board: esp01_1m
 
 packages:
-  common: !include common.template.yaml
+  common: !include base/common.template.yaml
 
 uart:
    rx_pin: GPIO3

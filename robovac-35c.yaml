@@ -8,7 +8,7 @@ esp8266:
   board: esp01_1m
 
 packages:
-  common: !include common.template.yaml
+  common: !include base/common.template.yaml
 
 wifi:
   fast_connect: true
@@ -92,7 +92,7 @@ sensor:
     device_class: battery
     unit_of_measurement: '%'
     accuracy_decimals: 0
-    state_class: total
+    state_class: measurement
 
   # - platform: tuya
   #   name: ${friendly_name} DP3
