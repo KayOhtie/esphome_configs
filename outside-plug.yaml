@@ -1,29 +1,12 @@
+substitutions:
+  friendly_name: Outside Plug
 esphome:
   name: outside-plug
-
-esp8266:
+  platform: ESP8266
   board: esp8285
 
-# Enable logging
-logger:
-
-# Enable Home Assistant API
-api:
-  password: !secret outside_plug_ota
-
-ota:
-  password: !secret outside_plug_ota
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-  # Enable fallback hotspot (captive portal) in case wifi connection fails
-  ap:
-    ssid: "Outside-Plug Fallback Hotspot"
-    password: "sawo8CBVoIkv"
-
-captive_portal:
+packages:
+  common: !include base/common.template.yaml
 
 switch:
   - platform: gpio
