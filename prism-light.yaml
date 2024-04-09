@@ -13,8 +13,7 @@ api:
         effect_string: string
       then:
         - lambda: |-
-            id(pattern) = effect_string;
-            id(set_pattern).execute();
+            id(set_pattern).execute(effect_string);
 
 uart:
    rx_pin: GPIO3
@@ -53,20 +52,15 @@ tuya:
 #   pt: pattern, index of [solid,up,down,center,stripe,out,in,rot,spiral]
 #   HSV: 0-360, 0-1000, 10-1000
 #   effect_bytes: {id}{sp}{mo}{pt}[colors:{hue}{sat}{vals}0000]
-globals:
-  - id: pattern
-    type: std::string
-    restore_value: no
-    initial_value: ''
+
 script:
   - id: set_pattern
-    mode: restart
+    parameters:
+      new_pattern: string
     then:
       - lambda: |-
-          tuya_tuya->set_string_datapoint_value(101, id(pattern));
+          tuya_tuya->set_string_datapoint_value(101, new_pattern);
           tuya_tuya->set_enum_datapoint_value(21,2);
-      - delay: 300s
-#          id(blank_effect).execute();
   - id: stop_pattern
     then:
       - lambda: |-
@@ -106,43 +100,24 @@ light:
     #         lambda: 'return id(prism).get_effect_name() == "None";'
     #       then:
     #         - script.execute: stop_pattern
-    effects:
-      - lambda:
-          name: Stop Effect
-          lambda: |-
-            id(stop_pattern).execute();
-            id(blank_effect).execute();
+select:
+  - platform: template
+    name: SceneOption
+    optimistic: true
       # Hypnotize, Vortex, and Sunset are all normally built-in; haven't tried invoking directly by ID
       # Hyperion is custom as an example of a custom one.
       # Would really like to figure out how to get addressable color selection working in HA:
       #   Pick multiple colors, speed, mode, animation pattern, and it works
-      - lambda:
-          name: Hyperion
-          update_interval: 1s
-          lambda: |-
-            id(pattern) = "10320003001c03e803e800000000012c03c003e80000000000c703e803e800000000";
-            id(set_pattern).execute();
-      - lambda:
-          name: Hypnotize
-          update_interval: 1s
-          lambda: |-
-            id(pattern) = "083c0001000003e803e800000000001e03e803e800000000003c03e803e800000000007803e803e80000000000b403e803e80000000000f003e803e800000000010e03e803e800000000012c03e803e800000000";
-            id(set_pattern).execute();
-      - lambda:
-          name: Vortex
-          update_interval: 1s
-          lambda: |-
-            id(pattern) = "09640008000003e803e800000000001e03e803e800000000003c03e803e800000000007803e803e80000000000b403e803e80000000000f003e803e800000000010e03e803e800000000012c03e803e800000000";
-            id(set_pattern).execute();
-      - lambda:
-          name: Sunset
-          update_interval: 1s
-          lambda: |-
-            id(pattern) = "0b280002000003e803e800000000000003e803e800000000001e03e803e800000000001e03e803e800000000003c03e803e800000000003c03e803e800000000";
-            id(set_pattern).execute();
-      - lambda:
-          name: Frigid
-          update_interval: 1s
-          lambda: |-
-            id(pattern) = "0c28000100b403e803e80000000000f003e803e800000000010e03e803e8000000000000000003e800000000";
-            id(set_pattern).execute();
+    options:
+      - Hyperion
+      - Hypnotize
+      - Vortex
+      - Sunset
+      - Frigid
+    set_action:
+      - lambda: |-
+          if (x == "Hyperion") id(set_pattern)->execute("10320003001c03e803e800000000012c03c003e80000000000c703e803e800000000");
+          if (x == "Hypnotize") id(set_pattern)->execute("083c0001000003e803e800000000001e03e803e800000000003c03e803e800000000007803e803e80000000000b403e803e80000000000f003e803e800000000010e03e803e800000000012c03e803e800000000");
+          if (x == "Vortex") id(set_pattern)->execute("09640008000003e803e800000000001e03e803e800000000003c03e803e800000000007803e803e80000000000b403e803e80000000000f003e803e800000000010e03e803e800000000012c03e803e800000000");
+          if (x == "Sunset") id(set_pattern)->execute("0b280002000003e803e800000000000003e803e800000000001e03e803e800000000001e03e803e800000000003c03e803e800000000003c03e803e800000000");
+          if (x == "Frigid") id(set_pattern)->execute("0c28000100b403e803e80000000000f003e803e800000000010e03e803e8000000000000000003e800000000");
