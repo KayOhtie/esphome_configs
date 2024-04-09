@@ -8,5 +8,6 @@
 **/src/
 **/platformio.ini
 /secrets.yaml
-/.envbase/secrets.yaml
-trash
+/.env
+/base/secrets.yaml
+/trash
