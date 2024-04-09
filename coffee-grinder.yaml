@@ -30,16 +30,21 @@ binary_sensor:
 
 sensor:
   - platform: cse7766
-    update_interval: 1s
     current:
       name: "${friendly_name} Current"
       accuracy_decimals: 1
+      filters:
+        - throttle_average: 1s
     voltage:
       name: "${friendly_name} Voltage"
       accuracy_decimals: 1
+      filters:
+        - throttle_average: 1s
     power:
       name: "${friendly_name} Power"
       accuracy_decimals: 1
+      filters:
+        - throttle_average: 1s
       id: my_power
   # - platform: total_daily_energy
   #   name: "${friendly_name} Daily Energy"
