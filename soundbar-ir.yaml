@@ -1,0 +1,46 @@
+substitutions:
+  friendly_name: Soundbar IR
+esphome:
+  name: soundbar-ir
+  platform: ESP32
+  board: adafruit_qtpy_esp32s2
+
+packages:
+  common: !include base/common.template.yaml
+
+remote_transmitter:
+  pin: GPIO9
+  carrier_duty_percent: 50%
+
+button:
+  - platform: template
+    name: "Optical"
+    on_press:
+     - remote_transmitter.transmit_nec:
+         address: 0xFF00
+         command: 0x37C8
+  - platform: template
+    name: "HDMI-ARC"
+    on_press:
+     - remote_transmitter.transmit_nec:
+         address: 0xFF00
+         command: 0x659A
+  - platform: template
+    name: "Mode-Direct"
+    on_press:
+     - remote_transmitter.transmit_nec:
+         address: 0xFF00
+         command: 0x738C
+
+switch:
+  - platform: template
+    name: "Night Mode"
+    turn_on_action:
+     - remote_transmitter.transmit_nec:
+         address: 0xFF00
+         command: 0x9E61
+    turn_off_action:
+     - remote_transmitter.transmit_nec:
+         address: 0xFF00
+         command: 0x9D62
+    
