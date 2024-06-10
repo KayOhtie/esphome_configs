@@ -1,0 +1,14 @@
+power   BF40
+bt-btn  DD22
+arc     659A
+hdmi    54AB
+opti    37C8
+volup   BE41
+voldn   BA45
+mute    B748
+eq-dir  738C
+eq-gam  
+eq-mus
+eq-mov
+nite+
+nite- 
