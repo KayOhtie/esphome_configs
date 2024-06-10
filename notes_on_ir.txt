@@ -12,3 +12,4 @@ eq-mus
 eq-mov
 nite+
 nite- 
+all addresses ff00
