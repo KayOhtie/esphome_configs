@@ -1,0 +1,9 @@
+substitutions:
+  friendly_name: Soundbar IR
+esphome:
+  name: soundbar-ir
+  platform: ESP32
+  board: 
+
+packages:
+  common: !include base/common.template.yaml
