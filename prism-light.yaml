@@ -21,15 +21,6 @@ uart:
    baud_rate: 9600
 tuya:
   time_id: esptime
-  on_datapoint_update:
-    - sensor_datapoint: 21
-      datapoint_type: enum
-      then:
-        - lambda: |-
-            if (x < 2) {
-              id(blank_effect).execute();
-            }
-
 # power: 20
 # brightness: 22
 #   range: 10-1000
@@ -53,18 +44,24 @@ tuya:
 #   HSV: 0-360, 0-1000, 10-1000
 #   effect_bytes: {id}{sp}{mo}{pt}[colors:{hue}{sat}{vals}0000]
 
+text_sensor:
+  - platform: tuya
+    sensor_datapoint: 101
+    id: light_pattern
+
 script:
   - id: set_pattern
     parameters:
       new_pattern: string
     then:
       - lambda: |-
-          tuya_tuya->set_string_datapoint_value(101, new_pattern);
-          tuya_tuya->set_enum_datapoint_value(21,2);
+          tuya_tuya_id->set_string_datapoint_value(101, new_pattern);
+          // id(light_pattern).publish_state(new_pattern);
+          tuya_tuya_id->set_enum_datapoint_value(21,2);
   - id: stop_pattern
     then:
       - lambda: |-
-          tuya_tuya->set_enum_datapoint_value(21,1);
+          tuya_tuya_id->set_enum_datapoint_value(21,1);
   - id: blank_effect
     then:
       - lambda: |-
@@ -101,6 +98,23 @@ light:
     #       then:
     #         - script.execute: stop_pattern
 select:
+  - platform: tuya
+    enum_datapoint: 21
+    name: Light Mode
+    options:
+      0: White
+      1: Color
+      2: Pattern
+      3: Music
+    on_value:
+      then:
+        - if:
+            condition:
+              not:
+                lambda: !lambda return i == 2;
+            then:
+              - script.execute: blank_effect
+
   - platform: template
     name: SceneOption
     optimistic: true
