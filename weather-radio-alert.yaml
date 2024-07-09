@@ -12,7 +12,6 @@ binary_sensor:
   - platform: gpio
     friendly_name: "Weather Radio External Alarm"
     name: "SAME Alarm"
-    id: alarm
     device_class: safety
     pin:
       number: D2
