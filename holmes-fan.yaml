@@ -1,0 +1,51 @@
+substitutions:
+  friendly_name: Holmes Tower
+esphome:
+  name: holmes-fan
+  platform: ESP8266
+  board: d1_mini
+
+packages:
+  common: !include base/common.template.yaml
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: America/Chicago
+    servers:
+      - 10.2.1.1
+      - 192.168.1.1
+uart:
+  baud_rate: 9600
+  rx_pin: RX
+  tx_pin: TX
+
+tuya:
+  time_id: sntp_time
+
+fan:
+  - platform: tuya
+    name: Fan
+    switch_datapoint: 1
+    speed_datapoint: 3
+    oscillation_datapoint: 5
+
+select:
+  - platform: tuya
+    name: Mode
+    enum_datapoint: 2
+    options:
+      0: "None"
+      1: Breeze
+      2: Sleep
+
+number:
+  - platform: tuya
+    name: Sleep Timer
+    number_datapoint: 22
+    min_value: 0
+    max_value: 15
+    step: 1
+    unit_of_measurement: hours
+    entity_category: config
+    icon: mdi:fan-timer
