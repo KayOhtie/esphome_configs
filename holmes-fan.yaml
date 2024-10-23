@@ -30,6 +30,7 @@ fan:
     speed_datapoint: 3
     oscillation_datapoint: 5
     speed_count: 3
+    restore_mode: RESTORE_DEFAULT_OFF
 
 select:
   - platform: tuya
@@ -55,6 +56,7 @@ number:
 switch:
   - platform: tuya
     name: Fan Oscillation
+    restore_mode: RESTORE_DEFAULT_OFF
     entity_category: config
     icon: 'mdi:arrow-oscillating'
     switch_datapoint: 5
