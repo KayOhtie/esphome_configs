@@ -51,7 +51,7 @@ speaker:
     id: echo_speaker
     i2s_dout_pin: GPIO22
     dac_type: external
-    mode: mono
+    channel: mono
 
 voice_assistant:
   id: va
@@ -62,6 +62,7 @@ voice_assistant:
   volume_multiplier: 2.0
   vad_threshold: 3
   on_listening:
+    - switch.turn_on: is_listening
     - light.turn_on:
         id: led
         blue: 100%
@@ -69,6 +70,7 @@ voice_assistant:
         green: 0%
         effect: "Slow Pulse"
   on_stt_vad_end:
+    - switch.turn_off: is_listening
     - light.turn_on:
         id: led
         blue: 100%
@@ -143,6 +145,19 @@ voice_assistant:
         then:
           - voice_assistant.start_continuous:
           - script.execute: reset_led
+  on_timer_started:
+    - lambda: |-
+        int minutes = timer.seconds_left / 60; 
+        int seconds = timer.seconds_left % 60;
+        auto timer_str = str_sprintf("%d:%02d", minutes, seconds);
+        id(timer_time).publish_state(timer_str);
+    - display.page.show: page_timer
+  on_timer_tick:
+    - lambda: |-
+        int minutes = timers[0].seconds_left / 60; 
+        int seconds = timers[0].seconds_left % 60;
+        auto timer_str = str_sprintf("%d:%02d", minutes, seconds);
+        id(timer_time).publish_state(timer_str);
 
 binary_sensor:
   - platform: gpio
@@ -185,7 +200,14 @@ binary_sensor:
           - ON for at least 10s
         then:
           - button.press: factory_reset_btn
-
+      # - timing:
+      #     - ON for at least 50ms
+      #     - OFF for at least 50ms
+      #     - ON for at least 50ms
+      #     - OFF for at least 50ms
+      #   then:
+      #     - display.page.show_next: time_display
+      #     - component.update: time_display
 light:
   - platform: esp32_rmt_led_strip
     id: led
@@ -268,6 +290,56 @@ switch:
     on_turn_on:
       - delay: 15min
       - switch.turn_off: timer_ringing
+    on_turn_off: 
+      then:
+        - display.page.show: page_time
+  - platform: template
+    id: is_listening
+    optimistic: true
+    internal: true
+  - platform: template
+    id: alarm_set
+    name: Alarm Set
+    entity_category: config
+    optimistic: true
+
+datetime:
+  - platform: template
+    type: time
+    id: alarm_time
+    name: Alarm Time
+    entity_category: config
+    restore_value: true
+    time_id: the_time
+    set_action:
+      - switch.turn_on: alarm_set
+    on_time:
+      then:
+        - logger.log: "Alarm triggered!"
+        # - if:
+        #     condition:
+        #       - switch.is_on: alarm_set
+        #     then:
+        #       - switch.turn_on: timer_ringing
+        #       - light.turn_on:
+        #           id: led
+        #           red: 0%
+        #           green: 100%
+        #           blue: 0%
+        #           brightness: 100%
+        #           effect: "Fast Pulse"
+        #       - while:
+        #           condition:
+        #             switch.is_on: timer_ringing
+        #           then:
+        #             - lambda: id(echo_speaker).play(id(timer_finished_wave_file), sizeof(id(timer_finished_wave_file)));
+        #             - delay: 1s
+        #       - wait_until:
+        #           not:
+        #             speaker.is_playing:
+        #       - light.turn_off: led
+        #       - switch.turn_off: timer_ringing
+            
 
 external_components:
   - source: github://pr#5230
@@ -284,3 +356,69 @@ file:
   - id: timer_finished_wave_file
     file: https://github.com/esphome/firmware/raw/main/voice-assistant/sounds/timer_finished.wav
 
+i2c:
+  sda: GPIO21
+  scl: GPIO25
+
+font:
+  - file: "gfonts://Share+Tech+Mono"
+    id: font_time
+    size: 40
+  - file: "gfonts://Share+Tech+Mono"
+    id: font_meridian
+    size: 20
+    extras:
+    - file: "gfonts://Material+Symbols+Outlined"
+      glyphs: ["\ue425","\ue7f4","\ue029", "\uf5d1"] # timer, alarm, microphone
+
+time:
+  # - platform: homeassistant
+  #   id: the_time
+  - platform: sntp
+    id: the_time
+    timezone: America/Chicago
+    servers:
+     - 10.2.1.1
+     - 192.168.1.1
+
+display:
+  - platform: ssd1306_i2c
+    id: time_display
+    model: "SSD1306 128x64"
+    flip_y: false
+    flip_x: false
+    address: 0x3C
+    pages:
+      - id: page_time
+        lambda: |-
+          it.strftime(8, 0, id(font_time), "%I:%M", id(the_time).now());
+          it.strftime(100, 38, id(font_meridian), "%P", id(the_time).now());
+          if (id(va).is_continuous()) {
+            it.print(80, 40, id(font_meridian), "\ue029");
+          } else if (id(va).is_running()) {
+            it.print(80, 40, id(font_meridian), "\uf5d1");
+          }
+          if (!id(va).get_timers().empty()) {
+            it.print(60, 40, id(font_meridian), "\ue425");
+          }
+          if (id(alarm_set).state) {
+            it.print(40, 40, id(font_meridian), "\ue7f4");
+          }
+      - id: page_timer
+        lambda: |-
+          it.printf(8, 0, id(font_time), "%s", id(timer_time).state.c_str());
+
+text_sensor:
+  - platform: template
+    id: timer_time
+    lambda: |-
+      return {};
+
+interval:
+  - interval: 5s
+    then:
+      - if:
+          condition:
+            - lambda: return !id(va).get_timers().empty();
+          then:
+            - display.page.show_next: time_display
