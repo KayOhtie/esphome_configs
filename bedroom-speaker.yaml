@@ -1,11 +1,12 @@
 substitutions:
   name: m5stack-atom-echo-8046b4
   friendly_name: Bedroom Speaker
+  weather_entity: weather.pirateweather
 esphome:
   name: ${name}
   name_add_mac_suffix: false
   friendly_name: ${friendly_name}
-  min_version: 2024.6.0
+  min_version: 2024.9.0
 
 esp32:
   board: m5stack-atom
@@ -170,7 +171,20 @@ binary_sensor:
     id: echo_button
     on_multi_click:
       - timing:
-          - ON for at least 50ms
+          - ON for 1s to 2s
+        then:
+          - switch.toggle: alarm_set
+      - timing:
+          - ON for 2s to 3s
+        then:
+          - switch.toggle: use_wake_word
+      - timing:
+          - ON for 500ms to 1s
+        then:
+          - display.page.show_next: time_display
+          - component.update: time_display
+      - timing:
+          - ON for at most 200ms
           - OFF for at least 50ms
         then:
           - if:
@@ -200,14 +214,6 @@ binary_sensor:
           - ON for at least 10s
         then:
           - button.press: factory_reset_btn
-      # - timing:
-      #     - ON for at least 50ms
-      #     - OFF for at least 50ms
-      #     - ON for at least 50ms
-      #     - OFF for at least 50ms
-      #   then:
-      #     - display.page.show_next: time_display
-      #     - component.update: time_display
 light:
   - platform: esp32_rmt_led_strip
     id: led
@@ -300,7 +306,7 @@ switch:
   - platform: template
     id: alarm_set
     name: Alarm Set
-    entity_category: config
+    # entity_category: config
     optimistic: true
 
 datetime:
@@ -308,37 +314,38 @@ datetime:
     type: time
     id: alarm_time
     name: Alarm Time
-    entity_category: config
+    # entity_category: config
     restore_value: true
+    initial_value: "00:00:00"
     time_id: the_time
     set_action:
       - switch.turn_on: alarm_set
     on_time:
       then:
         - logger.log: "Alarm triggered!"
-        # - if:
-        #     condition:
-        #       - switch.is_on: alarm_set
-        #     then:
-        #       - switch.turn_on: timer_ringing
-        #       - light.turn_on:
-        #           id: led
-        #           red: 0%
-        #           green: 100%
-        #           blue: 0%
-        #           brightness: 100%
-        #           effect: "Fast Pulse"
-        #       - while:
-        #           condition:
-        #             switch.is_on: timer_ringing
-        #           then:
-        #             - lambda: id(echo_speaker).play(id(timer_finished_wave_file), sizeof(id(timer_finished_wave_file)));
-        #             - delay: 1s
-        #       - wait_until:
-        #           not:
-        #             speaker.is_playing:
-        #       - light.turn_off: led
-        #       - switch.turn_off: timer_ringing
+        - if:
+            condition:
+              - switch.is_on: alarm_set
+            then:
+              - switch.turn_on: timer_ringing
+              - light.turn_on:
+                  id: led
+                  red: 0%
+                  green: 100%
+                  blue: 0%
+                  brightness: 100%
+                  effect: "Fast Pulse"
+              - while:
+                  condition:
+                    switch.is_on: timer_ringing
+                  then:
+                    - lambda: id(echo_speaker).play(id(timer_finished_wave_file), sizeof(id(timer_finished_wave_file)));
+                    - delay: 1s
+              - wait_until:
+                  not:
+                    speaker.is_playing:
+              - light.turn_off: led
+              - switch.turn_off: timer_ringing
             
 
 external_components:
@@ -359,18 +366,30 @@ file:
 i2c:
   sda: GPIO21
   scl: GPIO25
+  frequency: 800kHz
 
 font:
   - file: "gfonts://Share+Tech+Mono"
     id: font_time
     size: 40
-  - file: "gfonts://Share+Tech+Mono"
-    id: font_meridian
+  - file: "gfonts://VT323"
+    id: font_smaller
     size: 20
     extras:
     - file: "gfonts://Material+Symbols+Outlined"
-      glyphs: ["\ue425","\ue7f4","\ue029", "\uf5d1"] # timer, alarm, microphone
-
+      glyphs: [
+        "\ue425", # timer
+        "\ue7f4", # alarm
+        "\ue029", # microphone
+        "\uf5d1", # multiple microphones
+        # Weather
+        "\ue2bd", # cloud
+        "\ue81a", # sunny
+        "\uf176", # rainy
+        "\uef44", # clearnight
+        "\uf172", # partlycloudy
+        "\uebdb", # thunderstorm
+      ]
 time:
   # - platform: homeassistant
   #   id: the_time
@@ -391,18 +410,19 @@ display:
     pages:
       - id: page_time
         lambda: |-
-          it.strftime(8, 0, id(font_time), "%I:%M", id(the_time).now());
-          it.strftime(100, 38, id(font_meridian), "%P", id(the_time).now());
+          it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 6 < 3) ? "%l:%M" : "%l %M"), id(the_time).now());
+          it.printf(it.get_width(), 38, id(font_smaller), TextAlign::BOTTOM_RIGHT, "%c", id(the_time).now().strftime("%P")[0]);
+          it.printf(0, 38, id(font_smaller),"%.0f°", id(weather_temp).state);
           if (id(va).is_continuous()) {
-            it.print(80, 40, id(font_meridian), "\ue029");
+            it.print(80, 40, id(font_smaller), "\ue029");
           } else if (id(va).is_running()) {
-            it.print(80, 40, id(font_meridian), "\uf5d1");
+            it.print(80, 40, id(font_smaller), "\uf5d1");
           }
           if (!id(va).get_timers().empty()) {
-            it.print(60, 40, id(font_meridian), "\ue425");
+            it.print(60, 40, id(font_smaller), "\ue425");
           }
           if (id(alarm_set).state) {
-            it.print(40, 40, id(font_meridian), "\ue7f4");
+            it.print(40, 40, id(font_smaller), "\ue7f4");
           }
       - id: page_timer
         lambda: |-
@@ -413,6 +433,16 @@ text_sensor:
     id: timer_time
     lambda: |-
       return {};
+  - platform: homeassistant
+    id: weather_tempunit
+    entity_id: ${weather_entity}
+    attribute: temperature_unit
+
+sensor:
+  - platform: homeassistant
+    id: weather_temp
+    entity_id: ${weather_entity}
+    attribute: temperature
 
 interval:
   - interval: 5s
