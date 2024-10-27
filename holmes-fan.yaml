@@ -9,19 +9,21 @@ packages:
   common: !include base/common.template.yaml
 
 time:
-  - platform: sntp
-    id: sntp_time
-    timezone: America/Chicago
-    servers:
-      - 10.2.1.1
-      - 192.168.1.1
+  - platform: homeassistant
+    id: the_time
+  # - platform: sntp
+  #   id: the_time
+  #   timezone: America/Chicago
+  #   servers:
+  #     - 10.2.1.1
+  #     - 192.168.1.1
 uart:
   baud_rate: 9600
   rx_pin: GPIO13
   tx_pin: GPIO15
 
 tuya:
-  time_id: sntp_time
+  time_id: the_time
 
 fan:
   - platform: tuya
