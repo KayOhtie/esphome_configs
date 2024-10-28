@@ -7,13 +7,36 @@ esphome:
   name_add_mac_suffix: false
   friendly_name: ${friendly_name}
   min_version: 2024.9.0
-
+  # on_boot:
+  #   then:
+  #    - lambda: |-
+  #       std::map<char, char> m{
+  #         {"clear-night", "\uef44"},
+  #         {"cloudy", "\ue2bd"},
+  #         {"exceptional", "\uf3cc"},
+  #         {"fog", "\ue818"},
+  #         {"hail", "\uf67f"},
+  #         {"lightning", "\uea0b"},
+  #         {"lightning-rainy", "\uebdb"},
+  #         {"partlycloudy", "\uf172"},
+  #         {"pouring", "\uf61f"},
+  #         {"rainy", "\uf61e"},
+  #         {"snowy", "\ue80f"},
+  #         {"snowy-rainy", "\uf61d"},
+  #         {"sunny", "\ue81a"},
+  #         {"windy", "\uefd8"},
+  #         {"windy-variant", "\ue29c"}
+  #       };
 esp32:
   board: m5stack-atom
   framework:
     type: esp-idf
 
 logger:
+  level: INFO
+  logs:
+    number: WARN
+    display: ERROR
 
 ota:
   platform: esphome
@@ -147,18 +170,7 @@ voice_assistant:
           - voice_assistant.start_continuous:
           - script.execute: reset_led
   on_timer_started:
-    - lambda: |-
-        int minutes = timer.seconds_left / 60; 
-        int seconds = timer.seconds_left % 60;
-        auto timer_str = str_sprintf("%d:%02d", minutes, seconds);
-        id(timer_time).publish_state(timer_str);
     - display.page.show: page_timer
-  on_timer_tick:
-    - lambda: |-
-        int minutes = timers[0].seconds_left / 60; 
-        int seconds = timers[0].seconds_left % 60;
-        auto timer_str = str_sprintf("%d:%02d", minutes, seconds);
-        id(timer_time).publish_state(timer_str);
 
 binary_sensor:
   - platform: gpio
@@ -169,23 +181,33 @@ binary_sensor:
     disabled_by_default: true
     entity_category: diagnostic
     id: echo_button
+    filters:
+      - delayed_on: 10ms
+      - delayed_off: 10ms
     on_multi_click:
       - timing:
-          - ON for 1s to 2s
+          - ON for at least 2s
         then:
-          - switch.toggle: alarm_set
+          - if:
+              condition:
+                display_menu.is_active:
+              then:
+                - display_menu.hide:
+              else:
+                - display_menu.show_main:
       - timing:
-          - ON for 2s to 3s
+          - ON for 800ms to 1700ms
         then:
-          - switch.toggle: use_wake_word
+          - if:
+              condition:
+                display_menu.is_active:
+              then:
+                - display_menu.enter:
+              else:
+                - display.page.show_next: the_display
+                - component.update: the_display
       - timing:
-          - ON for 500ms to 1s
-        then:
-          - display.page.show_next: time_display
-          - component.update: time_display
-      - timing:
-          - ON for at most 200ms
-          - OFF for at least 50ms
+          - ON for at most 350ms
         then:
           - if:
               condition:
@@ -195,21 +217,27 @@ binary_sensor:
               else:
                 - if:
                     condition:
-                      switch.is_off: use_wake_word
+                      display_menu.is_active:
                     then:
-                      - if:
-                          condition: voice_assistant.is_running
-                          then:
-                            - voice_assistant.stop:
-                            - script.execute: reset_led
-                          else:
-                            - voice_assistant.start:
+                      - display_menu.down:
                     else:
-                      - voice_assistant.stop
-                      - delay: 1s
-                      - script.execute: reset_led
-                      - script.wait: reset_led
-                      - voice_assistant.start_continuous:
+                    - if:
+                        condition:
+                          switch.is_off: use_wake_word
+                        then:
+                          - if:
+                              condition: voice_assistant.is_running
+                              then:
+                                - voice_assistant.stop:
+                                - script.execute: reset_led
+                              else:
+                                - voice_assistant.start:
+                        else:
+                          - voice_assistant.stop
+                          - delay: 1s
+                          - script.execute: reset_led
+                          - script.wait: reset_led
+                          - voice_assistant.start_continuous:
       - timing:
           - ON for at least 10s
         then:
@@ -306,7 +334,12 @@ switch:
   - platform: template
     id: alarm_set
     name: Alarm Set
+    restore_mode: RESTORE_DEFAULT_OFF
     # entity_category: config
+    optimistic: true
+  - platform: template
+    id: show_weather
+    restore_mode: RESTORE_DEFAULT_OFF
     optimistic: true
 
 datetime:
@@ -383,12 +416,21 @@ font:
         "\ue029", # microphone
         "\uf5d1", # multiple microphones
         # Weather
-        "\ue2bd", # cloud
-        "\ue81a", # sunny
-        "\uf176", # rainy
-        "\uef44", # clearnight
+        "\uef44", # clear-night
+        "\ue2bd", # cloudy
+        "\uf3cc", # exceptional
+        "\ue818", # fog
+        "\uf67f", # hail
+        "\uea0b", # lightning
+        "\uebdb", # lightning-rainy
         "\uf172", # partlycloudy
-        "\uebdb", # thunderstorm
+        "\uf61f", # pouring
+        "\uf61e", # rainy
+        "\ue80f", # snowy
+        "\uf61d", # snowy-rainy
+        "\ue81a", # sunny
+        "\uefd8", # windy
+        "\ue29c", # windy-variant
       ]
 time:
   # - platform: homeassistant
@@ -400,9 +442,91 @@ time:
      - 10.2.1.1
      - 192.168.1.1
 
+number:
+  - platform: template
+    id: alarm_minute
+    internal: true
+    min_value: 0
+    max_value: 60
+    step: 1
+    lambda: |-
+      return id(alarm_time).minute;
+    update_interval: 1s
+    set_action:
+      - datetime.time.set:
+          id: alarm_time
+          time: !lambda |-
+            uint8_t hour = id(alarm_time).minute;
+            uint8_t minute = int(x) % 60;
+            return {.second = 0, .minute = minute, .hour = hour};
+  - platform: template
+    id: alarm_hour
+    internal: true
+    min_value: 0
+    max_value: 24
+    step: 1
+    lambda: |-
+      return id(alarm_time).hour;
+    update_interval: 1s
+    set_action:
+      - datetime.time.set:
+          id: alarm_time
+          time: !lambda |-
+            uint8_t hour = int(x) % 24;
+            uint8_t minute = id(alarm_time).minute;
+            return {.second = 0, .minute = minute, .hour = hour};
+
+graphical_display_menu:
+  id: the_menu
+  display: the_display
+  on_redraw:
+    then:
+      - component.update: the_display
+  active: false
+  mode: rotary
+  font: font_smaller
+  items:
+    - type: menu
+      text: 'Alarm Setup'
+      items:
+        - type: switch
+          immediate_edit: true
+          text: 'Alarm'
+          switch: alarm_set
+        - type: number
+          text: 'Hour'
+          number: alarm_hour
+          format: "%2.0f"
+          immediate_edit: true
+        - type: number
+          text: 'Minute'
+          number: alarm_minute
+          format: "%2.0f"
+          immediate_edit: true
+        - type: back
+          text: 'Back'
+    - type: switch
+      immediate_edit: true
+      text: 'Wake Word'
+      switch: use_wake_word
+    - type: switch
+      immediate_edit: true
+      text: !lambda |-
+        return "\ue029 Light";
+      switch: use_listen_light
+    - type: switch
+      immediate_edit: true
+      text: 'Weather'
+      switch: show_weather
+    - type: command
+      text: 'Exit'
+      on_value:
+        then:
+          - display_menu.hide:
+      
 display:
   - platform: ssd1306_i2c
-    id: time_display
+    id: the_display
     model: "SSD1306 128x64"
     flip_y: false
     flip_x: false
@@ -410,9 +534,29 @@ display:
     pages:
       - id: page_time
         lambda: |-
-          it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 6 < 3) ? "%l:%M" : "%l %M"), id(the_time).now());
-          it.printf(it.get_width(), 38, id(font_smaller), TextAlign::BOTTOM_RIGHT, "%c", id(the_time).now().strftime("%P")[0]);
-          it.printf(0, 38, id(font_smaller),"%.0f°", id(weather_temp).state);
+          it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 4 < 2) ? "%l:%M" : "%l %M"), id(the_time).now());
+          it.printf(it.get_width()-2, 36, id(font_smaller), TextAlign::BOTTOM_RIGHT, "%c", id(the_time).now().strftime("%P")[0]);
+          if (id(show_weather).state) {
+            std::map<std::string, std::string> weather_icon_map
+              {
+                {"clear-night", "\uef44"},
+                {"cloudy", "\ue2bd"},
+                {"exceptional", "\uf3cc"},
+                {"fog", "\ue818"},
+                {"hail", "\uf67f"},
+                {"lightning", "\uea0b"},
+                {"lightning-rainy", "\uebdb"},
+                {"partlycloudy", "\uf172"},
+                {"pouring", "\uf61f"},
+                {"rainy", "\uf61e"},
+                {"snowy", "\ue80f"},
+                {"snowy-rainy", "\uf61d"},
+                {"sunny", "\ue81a"},
+                {"windy", "\uefd8"},
+                {"windy-variant", "\ue29c"}
+              };
+            it.printf(0, 38, id(font_smaller),"%s%3.0f°", weather_icon_map[id(weather_condition).state.c_str()].c_str(), id(weather_temp).state);
+          }
           if (id(va).is_continuous()) {
             it.print(80, 40, id(font_smaller), "\ue029");
           } else if (id(va).is_running()) {
@@ -422,21 +566,31 @@ display:
             it.print(60, 40, id(font_smaller), "\ue425");
           }
           if (id(alarm_set).state) {
-            it.print(40, 40, id(font_smaller), "\ue7f4");
+            it.print(it.get_width()-2, it.get_height()-2, id(font_smaller), TextAlign::BOTTOM_RIGHT, "\ue7f4");
           }
       - id: page_timer
         lambda: |-
-          it.printf(8, 0, id(font_time), "%s", id(timer_time).state.c_str());
+          auto timers = id(va).get_timers();
+          int minutes = 0;
+          int seconds = 0;
+          if (!timers.empty()) {
+            minutes = timers[0].seconds_left / 60; 
+            seconds = timers[0].seconds_left % 60;
+          }
+          it.printf(it.get_width(), 0, id(font_time), TextAlign::TOP_RIGHT, "%d:%02d", minutes, seconds);
 
 text_sensor:
-  - platform: template
-    id: timer_time
-    lambda: |-
-      return {};
+  # - platform: template
+  #   id: timer_time
+  #   lambda: |-
+  #     return {};
+  # - platform: homeassistant
+  #   id: weather_tempunit
+  #   entity_id: ${weather_entity}
+  #   attribute: temperature_unit
   - platform: homeassistant
-    id: weather_tempunit
+    id: weather_condition
     entity_id: ${weather_entity}
-    attribute: temperature_unit
 
 sensor:
   - platform: homeassistant
@@ -451,4 +605,4 @@ interval:
           condition:
             - lambda: return !id(va).get_timers().empty();
           then:
-            - display.page.show_next: time_display
+            - display.page.show_next: the_display
