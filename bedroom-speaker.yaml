@@ -2,6 +2,8 @@ substitutions:
   name: m5stack-atom-echo-8046b4
   friendly_name: Bedroom Speaker
   weather_entity: weather.pirateweather
+  light_group_entity: light.bedroom_lights
+  alarm_schedule_entity: schedule.alarm_clock
 esphome:
   name: ${name}
   name_add_mac_suffix: false
@@ -173,6 +175,23 @@ voice_assistant:
     - display.page.show: page_timer
 
 binary_sensor:
+  - platform: homeassistant
+    entity_id: ${light_group_entity}
+    id: lights_state
+    on_state: 
+      then:
+        - script.execute: update_brightness
+  - platform: homeassistant
+    entity_id: ${alarm_schedule_entity}
+    id: alarm_schedule
+    on_state: 
+      then:
+        - if: 
+            condition: 
+              - lambda: |- 
+                  return (id(alarm_mode).active_index() == 2) && x && true;
+            then:
+              - script.execute: alarm_ring
   - platform: gpio
     pin:
       number: GPIO39
@@ -269,6 +288,43 @@ light:
           max_brightness: 100%
 
 script:
+  - id: update_brightness
+    then:
+      - if:
+          condition:
+            or:
+              - binary_sensor.is_on: lights_state
+              - text_sensor.state: 
+                  id: the_sun
+                  state: "above_horizon"
+          then:
+            - lambda: |-
+                id(the_display).set_contrast(1.0);
+          else:
+            - lambda: |-
+                id(the_display).set_contrast(float(id(brightness_night).state)/100.0);
+  - id: alarm_ring
+    then:
+      - logger.log: "Alarm triggered!"
+      - switch.turn_on: timer_ringing
+      - light.turn_on:
+          id: led
+          red: 0%
+          green: 100%
+          blue: 0%
+          brightness: 100%
+          effect: "Fast Pulse"
+      - while:
+          condition:
+            switch.is_on: timer_ringing
+          then:
+            - lambda: id(echo_speaker).play(id(timer_finished_wave_file), sizeof(id(timer_finished_wave_file)));
+            - delay: 1s
+      - wait_until:
+          not:
+            speaker.is_playing:
+      - light.turn_off: led
+      - switch.turn_off: timer_ringing
   - id: reset_led
     then:
       - if:
@@ -331,54 +387,47 @@ switch:
     id: is_listening
     optimistic: true
     internal: true
-  - platform: template
-    id: alarm_set
-    name: Alarm Set
-    restore_mode: RESTORE_DEFAULT_OFF
-    # entity_category: config
-    optimistic: true
+
   - platform: template
     id: show_weather
     restore_mode: RESTORE_DEFAULT_OFF
     optimistic: true
 
+select:
+  - platform: template
+    name: Alarm Mode
+    id: alarm_mode
+    optimistic: true
+    restore_value: true
+    options: 
+      - 'Off'
+      - Local
+      - Schedule
+
 datetime:
   - platform: template
     type: time
     id: alarm_time
-    name: Alarm Time
     # entity_category: config
-    restore_value: true
-    initial_value: "00:00:00"
     time_id: the_time
+    initial_value: "00:00:00"
+    # lambda: |-
+    #   uint8_t hour = int(id(alarm_hour).state);
+    #   uint8_t minute = int(id(alarm_minute).state);
+    #   return {.second = 0, .minute = minute, .hour = hour};
     set_action:
-      - switch.turn_on: alarm_set
+      - select.set_index:
+          id: alarm_mode
+          index: 1
     on_time:
       then:
-        - logger.log: "Alarm triggered!"
         - if:
             condition:
-              - switch.is_on: alarm_set
+              - lambda: |-
+                  return id(alarm_mode).active_index() == 1;
             then:
-              - switch.turn_on: timer_ringing
-              - light.turn_on:
-                  id: led
-                  red: 0%
-                  green: 100%
-                  blue: 0%
-                  brightness: 100%
-                  effect: "Fast Pulse"
-              - while:
-                  condition:
-                    switch.is_on: timer_ringing
-                  then:
-                    - lambda: id(echo_speaker).play(id(timer_finished_wave_file), sizeof(id(timer_finished_wave_file)));
-                    - delay: 1s
-              - wait_until:
-                  not:
-                    speaker.is_playing:
-              - light.turn_off: led
-              - switch.turn_off: timer_ringing
+              - script.execute: alarm_ring
+        
             
 
 external_components:
@@ -415,6 +464,7 @@ font:
         "\ue7f4", # alarm
         "\ue029", # microphone
         "\uf5d1", # multiple microphones
+        "\uf540", # calendar
         # Weather
         "\uef44", # clear-night
         "\ue2bd", # cloudy
@@ -445,36 +495,34 @@ time:
 number:
   - platform: template
     id: alarm_minute
+    name: Alarm Minute
+    entity_category: config
     internal: true
     min_value: 0
     max_value: 60
     step: 1
-    lambda: |-
-      return id(alarm_time).minute;
-    update_interval: 1s
-    set_action:
-      - datetime.time.set:
-          id: alarm_time
-          time: !lambda |-
-            uint8_t hour = id(alarm_time).minute;
-            uint8_t minute = int(x) % 60;
-            return {.second = 0, .minute = minute, .hour = hour};
+    optimistic: true
   - platform: template
     id: alarm_hour
+    name: Alarm Hour
+    entity_category: config
     internal: true
     min_value: 0
     max_value: 24
     step: 1
-    lambda: |-
-      return id(alarm_time).hour;
-    update_interval: 1s
-    set_action:
-      - datetime.time.set:
-          id: alarm_time
-          time: !lambda |-
-            uint8_t hour = int(x) % 24;
-            uint8_t minute = id(alarm_time).minute;
-            return {.second = 0, .minute = minute, .hour = hour};
+    optimistic: true
+  - platform: template
+    id: brightness_night
+    name: Night Brightness
+    entity_category: config
+    min_value: 10
+    max_value: 100
+    step: 10
+    optimistic: true
+    restore_value: true
+    on_value: 
+      then:
+        - script.execute: update_brightness
 
 graphical_display_menu:
   id: the_menu
@@ -489,10 +537,10 @@ graphical_display_menu:
     - type: menu
       text: 'Alarm Setup'
       items:
-        - type: switch
+        - type: select
           immediate_edit: true
           text: 'Alarm'
-          switch: alarm_set
+          select: alarm_mode
         - type: number
           text: 'Hour'
           number: alarm_hour
@@ -530,6 +578,7 @@ display:
     model: "SSD1306 128x64"
     flip_y: false
     flip_x: false
+    contrast: "100%"
     address: 0x3C
     pages:
       - id: page_time
@@ -565,8 +614,8 @@ display:
           if (!id(va).get_timers().empty()) {
             it.print(60, 40, id(font_smaller), "\ue425");
           }
-          if (id(alarm_set).state) {
-            it.print(it.get_width()-2, it.get_height()-2, id(font_smaller), TextAlign::BOTTOM_RIGHT, "\ue7f4");
+          if (id(alarm_mode).active_index() > 0) {
+            it.print(it.get_width()-2, it.get_height()-2, id(font_smaller), TextAlign::BOTTOM_RIGHT, (id(alarm_mode).active_index() == 1 ? "\ue7f4" : "\uf540"));
           }
       - id: page_timer
         lambda: |-
@@ -591,6 +640,12 @@ text_sensor:
   - platform: homeassistant
     id: weather_condition
     entity_id: ${weather_entity}
+  - platform: homeassistant
+    id: the_sun
+    entity_id: sun.sun
+    on_value: 
+      then:
+        - script.execute: update_brightness
 
 sensor:
   - platform: homeassistant
@@ -606,3 +661,6 @@ interval:
             - lambda: return !id(va).get_timers().empty();
           then:
             - display.page.show_next: the_display
+  - interval: 30s
+    then:
+      - script.execute: update_brightness
