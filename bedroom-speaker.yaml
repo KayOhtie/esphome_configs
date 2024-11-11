@@ -96,6 +96,12 @@ voice_assistant:
   vad_threshold: 3
   on_listening:
     - switch.turn_on: is_listening
+    - rtttl.stop:
+    - if:
+        condition:
+          switch.is_on: active_tone
+        then:
+          rtttl.play:  'awake:d=32,o=5,b=100:c,f,g,a'
     - light.turn_on:
         id: led
         blue: 100%
@@ -104,6 +110,12 @@ voice_assistant:
         effect: "Slow Pulse"
   on_stt_vad_end:
     - switch.turn_off: is_listening
+    - rtttl.stop:
+    - if:
+        condition:
+          switch.is_on: active_tone
+        then:
+          rtttl.play: 'done:d=32,o=5,b=100:c6,c5'
     - light.turn_on:
         id: led
         blue: 100%
@@ -111,6 +123,7 @@ voice_assistant:
         green: 0%
         effect: "Fast Pulse"
   on_tts_start:
+    - rtttl.stop:
     - light.turn_on:
         id: led
         blue: 100%
@@ -125,6 +138,12 @@ voice_assistant:
           speaker.is_playing:
     - script.execute: reset_led
   on_error:
+    - rtttl.stop:
+    - if:
+        condition:
+          switch.is_on: active_tone
+        then:
+          rtttl.play: 'error:d=32,o=5,b=100:e4,e4,e4'
     - light.turn_on:
         id: led
         red: 100%
@@ -376,6 +395,12 @@ switch:
       - lambda: id(va).set_use_wake_word(false);
       - script.execute: reset_led
   - platform: template
+    name: Activation Tones
+    id: active_tone
+    optimistic: True
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
+  - platform: template
     name: Use listen light
     id: use_listen_light
     optimistic: true
@@ -603,6 +628,11 @@ graphical_display_menu:
       immediate_edit: true
       text: 'Wake Word'
       switch: use_wake_word
+    - type: switch
+      immediate_edit: true
+      text: !lambda |-
+        return "\ue029 Tone";
+      switch: active_tone
     - type: switch
       immediate_edit: true
       text: !lambda |-
