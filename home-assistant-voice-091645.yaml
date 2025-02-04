@@ -1,0 +1,611 @@
+substitutions:
+  name: home-assistant-voice-091645
+  friendly_name: Bedroom Speaker PE
+  weather_entity: weather.pirateweather
+  light_group_entity: light.bedroom_lights
+  alarm_schedule_entity: schedule.alarm_clock
+packages:
+  Nabu Casa.Home Assistant Voice PE: github://esphome/home-assistant-voice-pe/home-assistant-voice.yaml
+esphome:
+  name: ${name}
+  name_add_mac_suffix: false
+  friendly_name: ${friendly_name}
+api:
+  encryption:
+    key: !secret ha_voice_pe_bedroom_enc
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+font:
+  - file: "gfonts://Share+Tech+Mono"
+    id: font_time
+    size: 40
+  - file: "gfonts://VT323"
+    id: font_smaller
+    size: 20
+    extras:
+    - file: "gfonts://Material+Symbols+Outlined"
+      glyphs: [
+        "\ue425", # timer
+        "\ue7f4", # alarm
+        "\ue029", # microphone
+        "\uf5d1", # multiple microphones
+        "\uf540", # calendar
+        # Weather
+        "\uef44", # clear-night
+        "\ue2bd", # cloudy
+        "\uf3cc", # exceptional
+        "\ue818", # fog
+        "\uf67f", # hail
+        "\uea0b", # lightning
+        "\uebdb", # lightning-rainy
+        "\uf172", # partlycloudy
+        "\uf61f", # pouring
+        "\uf61e", # rainy
+        "\ue80f", # snowy
+        "\uf61d", # snowy-rainy
+        "\ue81a", # sunny
+        "\uefd8", # windy
+        "\ue29c", # windy-variant
+      ]
+
+time:
+  - platform: homeassistant
+    id: the_time
+  # - platform: sntp
+  #   id: the_time
+  #   timezone: America/Chicago
+  #   servers:
+  #     - "10.2.1.1"
+
+graphical_display_menu:
+  id: the_menu
+  display: the_display
+  on_redraw:
+    then:
+      - component.update: the_display
+  active: false
+  mode: rotary
+  font: font_smaller
+  items:
+    - type: menu
+      text: 'Alarm Setup'
+      items:
+        - type: select
+          immediate_edit: true
+          text: 'Alarm'
+          select: alarm_mode
+        - type: number
+          text: 'Hour'
+          number: alarm_hour
+          format: "%2.0f"
+          immediate_edit: true
+        - type: number
+          text: 'Minute'
+          number: alarm_minute
+          format: "%2.0f"
+          immediate_edit: true
+        - type: back
+          text: 'Back'
+    - type: switch
+      immediate_edit: true
+      text: 'Wake Word'
+      switch: use_wake_word
+    - type: switch
+      immediate_edit: true
+      text: !lambda |-
+        return "\ue029 Tone";
+      switch: wake_sound
+    - type: switch
+      immediate_edit: true
+      text: 'Weather'
+      switch: show_weather
+    - type: command
+      text: 'Exit'
+      on_value:
+        then:
+          - display_menu.hide:
+
+switch:
+  - platform: template
+    id: show_weather
+    restore_mode: RESTORE_DEFAULT_OFF
+    optimistic: true
+  - platform: template
+    name: Use wake word
+    id: use_wake_word
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
+    on_turn_on:
+      - micro_wake_word.start:
+    on_turn_off:
+      - micro_wake_word.stop:
+
+display:
+  - platform: ssd1306_i2c
+    id: the_display
+    model: "SSD1306 128x64"
+    flip_y: false
+    flip_x: false
+    contrast: "100%"
+    address: 0x3C
+    pages:
+      - id: page_time
+        lambda: |-
+          it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 4 < 2) ? "%l:%M" : "%l %M"), id(the_time).now());
+          it.printf(it.get_width()-2, 36, id(font_smaller), TextAlign::BOTTOM_RIGHT, "%c", id(the_time).now().strftime("%P")[0]);
+          if (id(show_weather).state) {
+            std::map<std::string, std::string> weather_icon_map
+              {
+                {"clear-night", "\uef44"},
+                {"cloudy", "\ue2bd"},
+                {"exceptional", "\uf3cc"},
+                {"fog", "\ue818"},
+                {"hail", "\uf67f"},
+                {"lightning", "\uea0b"},
+                {"lightning-rainy", "\uebdb"},
+                {"partlycloudy", "\uf172"},
+                {"pouring", "\uf61f"},
+                {"rainy", "\uf61e"},
+                {"snowy", "\ue80f"},
+                {"snowy-rainy", "\uf61d"},
+                {"sunny", "\ue81a"},
+                {"windy", "\uefd8"},
+                {"windy-variant", "\ue29c"}
+              };
+            it.printf(0, 38, id(font_smaller),"%s%3.0f°", weather_icon_map[id(weather_condition).state.c_str()].c_str(), id(weather_temp).state);
+          }
+          if (id(va).is_continuous()) {
+            it.print(80, 40, id(font_smaller), "\ue029");
+          } else if (id(va).is_running()) {
+            it.print(80, 40, id(font_smaller), "\uf5d1");
+          }
+          if (!id(va).get_timers().empty()) {
+            it.print(60, 40, id(font_smaller), "\ue425");
+          }
+          if (id(alarm_mode).active_index() > 0) {
+            it.print(it.get_width()-2, it.get_height()-2, id(font_smaller), TextAlign::BOTTOM_RIGHT, (id(alarm_mode).active_index() == 1 ? "\ue7f4" : "\uf540"));
+          }
+      - id: page_timer
+        lambda: |-
+          int minutes = 0;
+          int seconds = 0;
+          auto timers = id(va).get_timers();
+          if (!timers.empty()) {
+            auto timer = timers.begin()->second;
+            minutes = timer.seconds_left / 60; 
+            seconds = timer.seconds_left % 60;
+            it.print(0, 40, id(font_smaller), timer.name.c_str());
+          }
+          it.printf(it.get_width(), 0, id(font_time), TextAlign::TOP_RIGHT, "%d:%02d", minutes, seconds);
+
+text_sensor:
+  - platform: homeassistant
+    id: the_sun
+    entity_id: sun.sun
+    on_value: 
+      then:
+        - script.execute: update_brightness
+  - platform: homeassistant
+    id: weather_condition
+    entity_id: ${weather_entity}
+
+sensor:
+  - platform: homeassistant
+    id: weather_temp
+    entity_id: ${weather_entity}
+    attribute: temperature
+
+  - id: !remove dial
+  # The dial. Used to control volume and Hue of the LED ring.
+  - platform: rotary_encoder
+    id: dial
+    pin_a: GPIO16
+    pin_b: GPIO18
+    resolution: 2
+    on_clockwise:
+      - if:
+          condition:
+            display_menu.is_active:
+          then:
+            - display_menu.down:
+          else:
+            - lambda: id(dial_touched) = true;
+            - if:
+                condition:
+                  binary_sensor.is_off: center_button
+                then:
+                  - script.execute:
+                      id: control_volume
+                      increase_volume: true
+                else:
+                  - script.execute:
+                      id: control_hue
+                      increase_hue: true
+    on_anticlockwise:
+      - if:
+          condition:
+            display_menu.is_active:
+          then:
+            - display_menu.up:
+          else:
+            - lambda: id(dial_touched) = true;
+            - if:
+                condition:
+                  binary_sensor.is_off: center_button
+                then:
+                  - script.execute:
+                      id: control_volume
+                      increase_volume: false
+                else:
+                  - script.execute:
+                      id: control_hue
+                      increase_hue: false
+
+interval:
+  - interval: 5s
+    then:
+      - if:
+          condition:
+            - lambda: return !id(va).get_timers().empty();
+          then:
+            - display.page.show_next: the_display
+
+binary_sensor:
+  - platform: homeassistant
+    entity_id: ${light_group_entity}
+    id: lights_state
+    on_state: 
+      then:
+        - script.execute: update_brightness
+  - platform: homeassistant
+    entity_id: ${alarm_schedule_entity}
+    id: alarm_schedule
+    on_state: 
+      then:
+        - if: 
+            condition: 
+              - lambda: |- 
+                  return (id(alarm_mode).active_index() == 2) && x && true;
+            then:
+              - switch.turn_on: timer_ringing
+  # Center Button. Used for many things (See on_multi_click)
+  - id: !remove center_button
+  - platform: gpio
+    id: center_button
+    pin:
+      number: GPIO0
+      inverted: true
+    on_press:
+      - if:
+          condition:
+            not:
+              display_menu.is_active:
+          then:
+            - script.execute: control_leds
+    on_release:
+      - if:
+          condition:
+            not:
+              display_menu.is_active:
+          then:
+            - script.execute: control_leds
+      # If a factory reset is requested, factory reset on release
+      - if:
+          condition:
+            lambda: return id(factory_reset_requested);
+          then:
+            - button.press: factory_reset_button
+    on_multi_click:
+      # Simple Click:
+      #   - Abort "things" in order
+      #     - Timer
+      #     - Announcements
+      #     - Voice Assistant Pipeline run
+      #     - Music
+      #   - Starts the voice assistant if it is not yet running and if the device is not muted.
+      - timing:
+          - ON for at most 1s
+          - OFF for at least 0.25s
+        then:
+          - if:
+              condition:
+                lambda: return !id(init_in_progress) && !id(color_changed);
+              then:
+                - if:
+                    condition:
+                      switch.is_on: timer_ringing
+                    then:
+                      - switch.turn_off: timer_ringing
+                    else:
+                      - if:
+                          condition:
+                            lambda: return id(nabu_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+                          then:
+                            - lambda: |
+                                id(nabu_media_player)
+                                  ->make_call()
+                                  .set_command(media_player::MediaPlayerCommand::MEDIA_PLAYER_COMMAND_STOP)
+                                  .set_announcement(true)
+                                  .perform();
+                          else:
+                            - if:
+                                condition:
+                                  voice_assistant.is_running:
+                                then:
+                                  - voice_assistant.stop:
+                                else:
+                                  - if:
+                                      condition:
+                                        media_player.is_playing:
+                                      then:
+                                        - media_player.pause:
+                                      else:
+                                        - if:
+                                            condition:
+                                              - display_menu.is_active:
+                                            then:
+                                              - display_menu.enter
+                                            else:
+                                              - if:
+                                                  condition:
+                                                    and:
+                                                      - switch.is_off: master_mute_switch
+                                                      - not:
+                                                          voice_assistant.is_running
+                                                  then:
+                                                    - script.execute:
+                                                        id: play_sound
+                                                        priority: true
+                                                        sound_file: !lambda return id(center_button_press_sound);
+                                                    - delay: 300ms
+                                                    - voice_assistant.start:
+      # Double Click
+      #  . Exposed as an event entity. To be used in automations inside Home Assistant
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 0.25s
+          - ON for at most 1s
+          - OFF for at least 0.25s
+        then:
+          - if:
+              condition:
+                lambda: return !id(init_in_progress) && !id(color_changed);
+              then:
+                - script.execute:
+                    id: play_sound
+                    priority: false
+                    sound_file: !lambda return id(center_button_double_press_sound);
+                - event.trigger:
+                    id: button_press_event
+                    event_type: "double_press"
+      # Triple Click
+      #  . Exposed as an event entity. To be used in automations inside Home Assistant
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 0.25s
+          - ON for at most 1s
+          - OFF for at most 0.25s
+          - ON for at most 1s
+          - OFF for at least 0.25s
+        then:
+          - if:
+              condition:
+                lambda: return !id(init_in_progress) && !id(color_changed);
+              then:
+                - script.execute:
+                    id: play_sound
+                    priority: false
+                    sound_file: !lambda return id(center_button_triple_press_sound);
+                - event.trigger:
+                    id: button_press_event
+                    event_type: "triple_press"
+      # Long Press
+      #  . Exposed as an event entity. To be used in automations inside Home Assistant
+      - timing:
+          - ON for 1s to 2s
+        then:
+          - if:
+              condition:
+                lambda: return !id(init_in_progress) && !id(color_changed);
+              then:
+                - script.execute:
+                    id: play_sound
+                    priority: false
+                    sound_file: !lambda return id(center_button_long_press_sound);
+                - light.turn_off: voice_assistant_leds
+                - event.trigger:
+                    id: button_press_event
+                    event_type: "long_press"
+      - timing:
+          - ON for 2s to 4s
+        then:
+          - if:
+              condition:
+                display_menu.is_active:
+              then:
+                - display_menu.hide:
+              else:
+                - display_menu.show_main:
+      # Very important do not remove. Trust me :D
+      - timing:
+          # H ....
+          - ON for at most 0.2s
+          - OFF for 0s to 2s
+          - ON for at most 0.2s
+          - OFF for 0s to 2s
+          - ON for at most 0.2s
+          - OFF for 0s to 2s
+          - ON for at most 0.2s
+          - OFF for 0.5s to 2s
+          # A ._
+          - ON for at most 0.2s
+          - OFF for 0s to 2s
+          - ON for 0.2s to 2s
+        then:
+          - if:
+              condition:
+                lambda: return !id(init_in_progress);
+              then:
+                - light.turn_on:
+                    brightness: 100%
+                    id: voice_assistant_leds
+                    effect: "Tick"
+                - script.execute:
+                    id: play_sound
+                    priority: true
+                    sound_file: !lambda return id(easter_egg_tick_sound);
+                - delay: 4s
+                - light.turn_off: voice_assistant_leds
+                - script.execute:
+                    id: play_sound
+                    priority: true
+                    sound_file: !lambda return id(easter_egg_tada_sound);
+                - light.turn_on:
+                    brightness: 100%
+                    id: voice_assistant_leds
+                    effect: "Rainbow"
+                - event.trigger:
+                    id: button_press_event
+                    event_type: "easter_egg_press"
+      # Factory Reset Warning
+      #  . Audible and Visible warning.
+      - timing:
+          - ON for at least 10s
+        then:
+          - if:
+              condition:
+                lambda: return !id(dial_touched);
+              then:
+                - light.turn_on:
+                    brightness: 100%
+                    id: voice_assistant_leds
+                    effect: "Factory Reset Coming Up"
+                - script.execute:
+                    id: play_sound
+                    priority: true
+                    sound_file: !lambda return id(factory_reset_initiated_sound);
+                - wait_until:
+                    binary_sensor.is_off: center_button
+                - if:
+                    condition:
+                      lambda: return !id(factory_reset_requested);
+                    then:
+                      - light.turn_off: voice_assistant_leds
+                      - script.execute:
+                          id: play_sound
+                          priority: true
+                          sound_file: !lambda return id(factory_reset_cancelled_sound);
+      # Factory Reset Confirmed.
+      #  . Audible warning to prompt user to release the button
+      #  . Set factory_reset_requested to true
+      - timing:
+          - ON for at least 22s
+        then:
+          - if:
+              condition:
+                lambda: return !id(dial_touched);
+              then:
+                - script.execute:
+                    id: play_sound
+                    priority: true
+                    sound_file: !lambda return id(factory_reset_confirmed_sound);
+                - light.turn_on:
+                    brightness: 100%
+                    red: 100%
+                    green: 0%
+                    blue: 0%
+                    id: voice_assistant_leds
+                    effect: "none"
+                - lambda: id(factory_reset_requested) = true;
+
+script:
+  - id: update_brightness
+    then:
+      - if:
+          condition:
+            or:
+              - binary_sensor.is_on: lights_state
+              - text_sensor.state: 
+                  id: the_sun
+                  state: "above_horizon"
+          then:
+            - lambda: |-
+                id(the_display).set_contrast(1.0);
+          else:
+            - lambda: |-
+                id(the_display).set_contrast(float(id(brightness_night).state)/100.0);
+  - id: alarm_ringing
+    then:
+      
+
+datetime:
+  - platform: template
+    type: time
+    id: alarm_time
+    # entity_category: config
+    time_id: the_time
+    initial_value: "00:00:00"
+    # lambda: |-
+    #   uint8_t hour = int(id(alarm_hour).state);
+    #   uint8_t minute = int(id(alarm_minute).state);
+    #   return {.second = 0, .minute = minute, .hour = hour};
+    set_action:
+      - select.set_index:
+          id: alarm_mode
+          index: 1
+    on_time:
+      then:
+        - if:
+            condition:
+              - lambda: |-
+                  return id(alarm_mode).active_index() == 1;
+            then:
+              - logger.log: "Alarm triggered!"
+              - switch.turn_on: timer_ringing
+
+number:
+  - platform: template
+    id: alarm_minute
+    name: Alarm Minute
+    entity_category: config
+    internal: true
+    min_value: 0
+    max_value: 60
+    step: 1
+    optimistic: true
+  - platform: template
+    id: alarm_hour
+    name: Alarm Hour
+    entity_category: config
+    internal: true
+    min_value: 0
+    max_value: 24
+    step: 1
+    optimistic: true
+  - platform: template
+    id: brightness_night
+    name: Night Brightness
+    entity_category: config
+    min_value: 10
+    max_value: 100
+    step: 10
+    optimistic: true
+    restore_value: true
+    on_value: 
+      then:
+        - script.execute: update_brightness
+
+select:
+  - platform: template
+    name: Alarm Mode
+    id: alarm_mode
+    optimistic: true
+    restore_value: true
+    options: 
+      - 'Off'
+      - Local
+      - Schedule
