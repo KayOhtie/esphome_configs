@@ -1,4 +1,4 @@
-substitutions:
+  substitutions:
   friendly_name: Holmes Tower
 esphome:
   name: holmes-fan
@@ -37,6 +37,7 @@ fan:
 select:
   - platform: tuya
     name: Fan Mode
+    id: fan_mode
     enum_datapoint: 2
     icon: 'mdi:wind-power'
     options:
@@ -56,9 +57,31 @@ number:
     icon: 'mdi:fan-clock'
 
 switch:
-  - platform: tuya
-    name: Fan Oscillation
-    restore_mode: RESTORE_DEFAULT_OFF
-    entity_category: config
-    icon: 'mdi:arrow-oscillating'
-    switch_datapoint: 5
+  - platform: template
+    name: Breeze Mode
+    lambda: 'return id(fan_mode).active_index() == 1;'
+    turn_on_action:
+        - select.set_index: 
+            id: fan_mode
+            index: 1
+    turn_off_action:
+        - select.set_index: 
+            id: fan_mode
+            index: 0
+  - platform: template
+    name: Sleep Mode
+    lambda: 'return id(fan_mode).active_index() == 2;'
+    turn_on_action:
+        - select.set_index: 
+            id: fan_mode
+            index: 2
+    turn_off_action:
+        - select.set_index: 
+            id: fan_mode
+            index: 0
+#   - platform: tuya
+#     name: Fan Oscillation
+#     restore_mode: RESTORE_DEFAULT_OFF
+#     entity_category: config
+#     icon: 'mdi:arrow-oscillating'
+#     switch_datapoint: 5
