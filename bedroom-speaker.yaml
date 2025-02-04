@@ -736,6 +736,7 @@ output:
     pin: GPIO26
     id: buzzer_out
 rtttl:
+  #speaker: echo_speaker
   output: buzzer_out
   id: the_buzzer
   gain: 50%
