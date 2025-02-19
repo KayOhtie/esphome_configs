@@ -20,7 +20,8 @@ wifi:
   password: !secret wifi_password
 
 font:
-  - file: "gfonts://Share+Tech+Mono"
+  # - file: "gfonts://Share+Tech+Mono"
+  - file: "BebasNeue-Regular.ttf"
     id: font_time
     size: 40
   - file: "gfonts://VT323"
