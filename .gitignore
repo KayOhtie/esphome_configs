@@ -11,3 +11,5 @@
 /.env
 /base/secrets.yaml
 /trash
+/venv
+/.venv
