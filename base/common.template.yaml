@@ -2,29 +2,13 @@
 logger:
   baud_rate: 0
 
-# Enable Home Assistant API
-api:
-  encryption:
-    key: !secret esphome_encryption
-
-ota:
-  - platform: esphome
-    password: !secret esphome_ota
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-  # Enable fallback hotspot (captive portal) in case wifi connection fails
-  ap:
-    ssid: "${friendly_name} Fallback"
-    password: !secret esphome_fallback
+packages:
+  wifi: !include wifi.inc.yaml
+  time: !include time.inc.yaml
+  ota: !include ota.inc.yaml
+  api: !include api.inc.yaml
 
 captive_portal:
-
-time:
-  - platform: homeassistant
-    id: esptime
 
 button:
   - platform: safe_mode
