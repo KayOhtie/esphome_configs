@@ -6,6 +6,7 @@ substitutions:
   alarm_schedule_entity: schedule.alarm_clock
 packages:
   Nabu Casa.Home Assistant Voice PE: github://esphome/home-assistant-voice-pe/home-assistant-voice.yaml
+  grove-i2c: github://esphome/home-assistant-voice-pe/modules/grove-i2c.yaml
 esphome:
   name: ${name}
   name_add_mac_suffix: false
@@ -59,7 +60,7 @@ time:
   #   timezone: America/Chicago
   #   servers:
   #     - "10.2.1.1"
-
+    
 graphical_display_menu:
   id: the_menu
   display: the_display
@@ -70,38 +71,49 @@ graphical_display_menu:
   mode: rotary
   font: font_smaller
   items:
-    - type: menu
-      text: 'Alarm Setup'
-      items:
-        - type: select
-          immediate_edit: true
-          text: 'Alarm'
-          select: alarm_mode
-        - type: number
-          text: 'Hour'
-          number: alarm_hour
-          format: "%2.0f"
-          immediate_edit: true
-        - type: number
-          text: 'Minute'
-          number: alarm_minute
-          format: "%2.0f"
-          immediate_edit: true
-        - type: back
-          text: 'Back'
-    - type: switch
+    - type: select
+      text: 'Alarm'
+      select: alarm_mode
       immediate_edit: true
-      text: 'Wake Word'
-      switch: use_wake_word
-    - type: switch
-      immediate_edit: true
-      text: !lambda |-
-        return "\ue029 Tone";
-      switch: wake_sound
+    # - type: menu
+    #   text: 'Alarm Setup'
+    #   items:
+    #     - type: number
+    #       text: 'Hour'
+    #       number: alarm_hour
+    #       format: "%2.0f"
+    #       on_leave:
+    #         - script.execute: set_alarm_time
+    #     - type: number
+    #       text: 'Minute'
+    #       number: alarm_minute
+    #       format: "%2.0f"
+    #       on_leave:
+    #         - script.execute: set_alarm_time
+    #     - type: back
+    #       text: 'Back'
     - type: switch
       immediate_edit: true
       text: 'Weather'
       switch: show_weather
+    - type: menu
+      text: 'Wake Word'
+      items:
+        # - type: switch
+        #   immediate_edit: true
+        #   text: 'Enable MWW'
+        #   switch: use_wake_word
+        # - type: select
+        #   select: wake_word_set
+        #   text: Active Word
+        # immediate_edit: true
+        - type: switch
+          immediate_edit: true
+          text: !lambda |-
+            return "\ue029 Tone";
+          switch: wake_sound
+        - type: back
+          text: 'Back'
     - type: command
       text: 'Exit'
       on_value:
@@ -114,20 +126,67 @@ switch:
     restore_mode: RESTORE_DEFAULT_OFF
     optimistic: true
   - platform: template
-    name: Use wake word
-    id: use_wake_word
+    id: alarm_ringing
     optimistic: true
-    restore_mode: RESTORE_DEFAULT_ON
-    entity_category: config
-    on_turn_on:
-      - micro_wake_word.start:
+    internal: true
+    restore_mode: ALWAYS_OFF
     on_turn_off:
-      - micro_wake_word.stop:
+      # Disable stop wake word
+      - lambda: id(stop).disable();
+      # Stop any current annoucement (ie: stop the alarm ring mid playback)
+      - if:
+          condition:
+            lambda: return id(nabu_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+          then:
+            lambda: |-
+              id(nabu_media_player)
+                ->make_call()
+                .set_command(media_player::MediaPlayerCommand::MEDIA_PLAYER_COMMAND_STOP)
+                .set_announcement(true)
+                .perform();
+      # Set back ducking ratio to zero
+      - nabu.set_ducking:
+          decibel_reduction: 0
+          duration: 1.0s
+      # Refresh the LED ring
+      - script.execute: control_leds
+    on_turn_on:
+      # Duck audio
+      - nabu.set_ducking:
+          decibel_reduction: 20
+          duration: 0.0s
+      # Enable stop wake word
+      - lambda: id(stop).enable();
+      - media_player.volume_set: 50%
+      # Ring alarm
+      - script.execute: ring_alarm
+      # Refresh LED
+      - script.execute: control_leds_timer_ringing
+      # If 15 minutes have passed and the timer is still ringing, stop it.
+      - delay: 15min
+      - switch.turn_off: alarm_ringing
+  # - platform: template
+  #   id: use_wake_word
+  #   restore_mode: RESTORE_DEFAULT_ON
+  #   entity_category: config
+  #   lambda: !lambda return id(mww).is_running();
+  #   turn_on_action:
+  #     - micro_wake_word.start
+  #     - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+  #     - script.execute: control_leds
+  #   turn_off_action:
+  #     - voice_assistant.stop
+  #     - micro_wake_word.stop
+
+i2c:
+  - id: !extend grove_i2c
+    frequency: 800kHz
 
 display:
   - platform: ssd1306_i2c
     id: the_display
     model: "SSD1306 128x64"
+    i2c_id: grove_i2c
     flip_y: false
     flip_x: false
     contrast: "100%"
@@ -167,7 +226,7 @@ display:
             it.print(60, 40, id(font_smaller), "\ue425");
           }
           if (id(alarm_mode).active_index() > 0) {
-            it.print(it.get_width()-2, it.get_height()-2, id(font_smaller), TextAlign::BOTTOM_RIGHT, (id(alarm_mode).active_index() == 1 ? "\ue7f4" : "\uf540"));
+            it.print(it.get_width()-2, it.get_height()-2, id(font_smaller), TextAlign::BOTTOM_RIGHT, (id(alarm_mode).active_index() == 2 ? "\ue7f4" : "\uf540"));
           }
       - id: page_timer
         lambda: |-
@@ -269,9 +328,9 @@ binary_sensor:
         - if: 
             condition: 
               - lambda: |- 
-                  return (id(alarm_mode).active_index() == 2) && x && true;
+                  return (id(alarm_mode).active_index() == 1) && x && true;
             then:
-              - switch.turn_on: timer_ringing
+              - switch.turn_on: alarm_ringing
   # Center Button. Used for many things (See on_multi_click)
   - id: !remove center_button
   - platform: gpio
@@ -317,9 +376,12 @@ binary_sensor:
               then:
                 - if:
                     condition:
-                      switch.is_on: timer_ringing
+                      or:
+                        - switch.is_on: timer_ringing
+                        - switch.is_on: alarm_ringing
                     then:
                       - switch.turn_off: timer_ringing
+                      - switch.turn_off: alarm_ringing
                     else:
                       - if:
                           condition:
@@ -538,54 +600,87 @@ script:
           else:
             - lambda: |-
                 id(the_display).set_contrast(float(id(brightness_night).state)/100.0);
-  - id: alarm_ringing
+  - id: ring_alarm
     then:
+      - while:
+          condition:
+            switch.is_on: alarm_ringing
+          then:
+            - script.execute:
+                id: play_sound
+                priority: true
+                sound_file: !lambda return id(alarm_glockenspiel);
+            - wait_until:
+                lambda: |-
+                  return id(nabu_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+            - wait_until:
+                not:
+                  lambda: |-
+                    return id(nabu_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+  # - id: set_alarm_time
+  #   then:
+  #     - datetime.time.set:
+  #         id: alarm_time
+  #         time: !lambda |-
+  #           uint8_t hour = int(id(alarm_hour).state);
+  #           uint8_t minute = int(id(alarm_minute).state);
+  #           return {.second = 0, .minute = minute, .hour = hour};
       
-
-datetime:
-  - platform: template
-    type: time
-    id: alarm_time
-    # entity_category: config
-    time_id: the_time
-    initial_value: "00:00:00"
-    # lambda: |-
-    #   uint8_t hour = int(id(alarm_hour).state);
-    #   uint8_t minute = int(id(alarm_minute).state);
-    #   return {.second = 0, .minute = minute, .hour = hour};
-    set_action:
-      - select.set_index:
-          id: alarm_mode
-          index: 1
-    on_time:
-      then:
-        - if:
-            condition:
-              - lambda: |-
-                  return id(alarm_mode).active_index() == 1;
-            then:
-              - logger.log: "Alarm triggered!"
-              - switch.turn_on: timer_ringing
+# datetime:
+#   - platform: template
+#     type: time
+#     id: alarm_time
+#     name: Alarm Time
+#     entity_category: config
+#     time_id: the_time
+#     lambda: !lambda return {};
+#     set_action:
+#       - select.set_index:
+#           id: alarm_mode
+#           index: 1
+#     on_time:
+#       then:
+#         - if:
+#             condition:
+#               - lambda: |-
+#                   return id(alarm_mode).active_index() == 2;
+#             then:
+#               - logger.log: "Alarm triggered!"
+#               - switch.turn_on: alarm_ringing
 
 number:
-  - platform: template
-    id: alarm_minute
-    name: Alarm Minute
-    entity_category: config
-    internal: true
-    min_value: 0
-    max_value: 60
-    step: 1
-    optimistic: true
-  - platform: template
-    id: alarm_hour
-    name: Alarm Hour
-    entity_category: config
-    internal: true
-    min_value: 0
-    max_value: 24
-    step: 1
-    optimistic: true
+  # - platform: template
+  #   id: alarm_minute
+  #   entity_category: config
+  #   internal: true
+  #   min_value: 0
+  #   max_value: 60
+  #   step: 1
+  #   optimistic: true
+  #   # lambda: !lambda return id(alarm_time).minute;
+  #   # set_action:
+  #   #   then:
+  #   #     - datetime.time.set:
+  #   #         id: alarm_time
+  #   #         time: !lambda |-
+  #   #           uint8_t hour = int(id(alarm_hour).state);
+  #   #           return {.second = 0, .minute = x, .hour = hour};
+  # - platform: template
+  #   id: alarm_hour
+  #   entity_category: config
+  #   internal: true
+  #   min_value: 0
+  #   max_value: 24
+  #   step: 1
+  #   optimistic: true
+  #   # lambda: !lambda return id(alarm_time).hour;
+  #   # set_action: 
+  #   #   then:
+  #       # - datetime.time.set:
+  #       #     id: alarm_time
+  #       #     time: !lambda |-
+  #       #       uint8_t minute = int(id(alarm_minute).state);
+  #       #       return {.second = 0, .minute = minute, .hour = x};
   - platform: template
     id: brightness_night
     name: Night Brightness
@@ -607,5 +702,20 @@ select:
     restore_value: true
     options: 
       - 'Off'
-      - Local
       - Schedule
+      # - Local
+  # - platform: template
+  #   id: wake_word_set
+  #   options:
+  #     - hey_jarvis
+  #     - hey_mycroft
+  #     - okay_nabu
+  #   lambda: !lambda return id(va).get_configuration().active_wake_words[0];
+  #   set_action:
+  #     - lambda: !lambda id(va).set_wake_word(x);
+
+media_player:
+  - id: !extend nabu_media_player
+    files:
+      - id: alarm_glockenspiel
+        file: ./inc/glockenspiel.wav
