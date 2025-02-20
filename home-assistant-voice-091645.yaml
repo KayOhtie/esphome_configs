@@ -4,6 +4,7 @@ substitutions:
   weather_entity: weather.pirateweather
   light_group_entity: light.bedroom_lights
   alarm_schedule_entity: schedule.alarm_clock
+  media_title_entity: sensor.bedroom_speaker_playing
 packages:
   Nabu Casa.Home Assistant Voice PE: github://esphome/home-assistant-voice-pe/home-assistant-voice.yaml
   grove-i2c: github://esphome/home-assistant-voice-pe/modules/grove-i2c.yaml
@@ -21,10 +22,11 @@ wifi:
 
 font:
   # - file: "gfonts://Share+Tech+Mono"
-  - file: "BebasNeue-Regular.ttf"
+  - file: "./fonts/BebasNeue-Regular.ttf"
     id: font_time
     size: 40
-  - file: "gfonts://VT323"
+  # - file: "gfonts://VT323"
+  - file: "./fonts/BebasNeue-Regular.ttf"
     id: font_smaller
     size: 20
     extras:
@@ -97,24 +99,24 @@ graphical_display_menu:
       immediate_edit: true
       text: 'Weather'
       switch: show_weather
-    - type: menu
-      text: 'Wake Word'
-      items:
+    # - type: menu
+    #   text: 'Wake Word'
+    #   items:
         # - type: switch
         #   immediate_edit: true
-        #   text: 'Enable MWW'
+        #   text: 'Wake Word'
         #   switch: use_wake_word
         # - type: select
         #   select: wake_word_set
         #   text: Active Word
         # immediate_edit: true
-        - type: switch
-          immediate_edit: true
-          text: !lambda |-
-            return "\ue029 Tone";
-          switch: wake_sound
-        - type: back
-          text: 'Back'
+        # - type: back
+        #   text: 'Back'
+    - type: switch
+      immediate_edit: true
+      text: !lambda |-
+        return "\ue029 Tone";
+      switch: wake_sound
     - type: command
       text: 'Exit'
       on_value:
@@ -126,6 +128,7 @@ switch:
     id: show_weather
     restore_mode: RESTORE_DEFAULT_OFF
     optimistic: true
+    # Internal switch to track when a timer is ringing on the device.
   - platform: template
     id: alarm_ringing
     optimistic: true
@@ -134,35 +137,33 @@ switch:
     on_turn_off:
       # Disable stop wake word
       - lambda: id(stop).disable();
-      # Stop any current annoucement (ie: stop the alarm ring mid playback)
+      - script.execute: disable_repeat
+      # Stop any current annoucement (ie: stop the timer ring mid playback)
       - if:
           condition:
-            lambda: return id(nabu_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+            media_player.is_announcing:
           then:
-            lambda: |-
-              id(nabu_media_player)
-                ->make_call()
-                .set_command(media_player::MediaPlayerCommand::MEDIA_PLAYER_COMMAND_STOP)
-                .set_announcement(true)
-                .perform();
+            media_player.stop:
+              announcement: true
       # Set back ducking ratio to zero
-      - nabu.set_ducking:
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
           decibel_reduction: 0
           duration: 1.0s
       # Refresh the LED ring
       - script.execute: control_leds
     on_turn_on:
       # Duck audio
-      - nabu.set_ducking:
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
           decibel_reduction: 20
           duration: 0.0s
       # Enable stop wake word
       - lambda: id(stop).enable();
-      - media_player.volume_set: 50%
-      # Ring alarm
+      # Ring timer
       - script.execute: ring_alarm
       # Refresh LED
-      - script.execute: control_leds_timer_ringing
+      - script.execute: control_leds
       # If 15 minutes have passed and the timer is still ringing, stop it.
       - delay: 15min
       - switch.turn_off: alarm_ringing
@@ -196,39 +197,48 @@ display:
       - id: page_time
         lambda: |-
           // it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 4 < 2) ? "%l:%M" : "%l %M"), id(the_time).now());
-          it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 4 < 2) ? "%l:%M" : "%l %M %P"), id(the_time).now());
+          // it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 4 < 2) ? "%l:%M %P" : "%l %M %P"), id(the_time).now());
+          it.strftime(64, 0, id(font_time), TextAlign::TOP_CENTER, "%l:%M %P", id(the_time).now());
           // it.printf(it.get_width()-2, 36, id(font_smaller), TextAlign::BOTTOM_RIGHT, "%c", id(the_time).now().strftime("%P")[0]);
-          if (id(show_weather).state) {
-            std::map<std::string, std::string> weather_icon_map
-              {
-                {"clear-night", "\uef44"},
-                {"cloudy", "\ue2bd"},
-                {"exceptional", "\uf3cc"},
-                {"fog", "\ue818"},
-                {"hail", "\uf67f"},
-                {"lightning", "\uea0b"},
-                {"lightning-rainy", "\uebdb"},
-                {"partlycloudy", "\uf172"},
-                {"pouring", "\uf61f"},
-                {"rainy", "\uf61e"},
-                {"snowy", "\ue80f"},
-                {"snowy-rainy", "\uf61d"},
-                {"sunny", "\ue81a"},
-                {"windy", "\uefd8"},
-                {"windy-variant", "\ue29c"}
-              };
-            it.printf(0, 38, id(font_smaller),"%s%3.0f°", weather_icon_map[id(weather_condition).state.c_str()].c_str(), id(weather_temp).state);
+          if (
+            (id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING) &&
+            (id(the_time).now().second % 20 < 10)
+          ) {
+            it.print(0,40,id(font_smaller),id(media_info).state.c_str());
           }
-          if (id(va).is_continuous()) {
-            it.print(80, 40, id(font_smaller), "\ue029");
-          } else if (id(va).is_running()) {
-            it.print(80, 40, id(font_smaller), "\uf5d1");
-          }
-          if (!id(va).get_timers().empty()) {
-            it.print(60, 40, id(font_smaller), "\ue425");
-          }
-          if (id(alarm_mode).active_index() > 0) {
-            it.print(it.get_width()-2, it.get_height()-2, id(font_smaller), TextAlign::BOTTOM_RIGHT, (id(alarm_mode).active_index() == 2 ? "\ue7f4" : "\uf540"));
+          else {
+            if (id(show_weather).state) {
+              std::map<std::string, std::string> weather_icon_map
+                {
+                  {"clear-night", "\uef44"},
+                  {"cloudy", "\ue2bd"},
+                  {"exceptional", "\uf3cc"},
+                  {"fog", "\ue818"},
+                  {"hail", "\uf67f"},
+                  {"lightning", "\uea0b"},
+                  {"lightning-rainy", "\uebdb"},
+                  {"partlycloudy", "\uf172"},
+                  {"pouring", "\uf61f"},
+                  {"rainy", "\uf61e"},
+                  {"snowy", "\ue80f"},
+                  {"snowy-rainy", "\uf61d"},
+                  {"sunny", "\ue81a"},
+                  {"windy", "\uefd8"},
+                  {"windy-variant", "\ue29c"}
+                };
+              it.printf(0, 38, id(font_smaller),"%s%3.0f°", weather_icon_map[id(weather_condition).state.c_str()].c_str(), id(weather_temp).state);
+            }
+            if (id(va).is_continuous()) {
+              it.print(80, 40, id(font_smaller), "\ue029");
+            } else if (id(va).is_running()) {
+              it.print(80, 40, id(font_smaller), "\uf5d1");
+            }
+            if (!id(va).get_timers().empty()) {
+              it.print(60, 40, id(font_smaller), "\ue425");
+            }
+            if (id(alarm_mode).active_index() > 0) {
+              it.print(it.get_width()-2, it.get_height()-2, id(font_smaller), TextAlign::BOTTOM_RIGHT, (id(alarm_mode).active_index() == 2 ? "\ue7f4" : "\uf540"));
+            }
           }
       - id: page_timer
         lambda: |-
@@ -253,6 +263,9 @@ text_sensor:
   - platform: homeassistant
     id: weather_condition
     entity_id: ${weather_entity}
+  - platform: homeassistant
+    id: media_info
+    entity_id: ${media_title_entity}
 
 sensor:
   - platform: homeassistant
@@ -387,10 +400,10 @@ binary_sensor:
                     else:
                       - if:
                           condition:
-                            lambda: return id(nabu_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+                            lambda: return id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
                           then:
                             - lambda: |
-                                id(nabu_media_player)
+                                id(external_media_player)
                                   ->make_call()
                                   .set_command(media_player::MediaPlayerCommand::MEDIA_PLAYER_COMMAND_STOP)
                                   .set_announcement(true)
@@ -460,6 +473,13 @@ binary_sensor:
               condition:
                 lambda: return !id(init_in_progress) && !id(color_changed);
               then:
+                - if:
+                    condition:
+                      display_menu.is_active:
+                    then:
+                      - display_menu.hide:
+                    else:
+                      - display_menu.show_main:
                 - script.execute:
                     id: play_sound
                     priority: false
@@ -467,6 +487,7 @@ binary_sensor:
                 - event.trigger:
                     id: button_press_event
                     event_type: "triple_press"
+                
       # Long Press
       #  . Exposed as an event entity. To be used in automations inside Home Assistant
       - timing:
@@ -484,16 +505,6 @@ binary_sensor:
                 - event.trigger:
                     id: button_press_event
                     event_type: "long_press"
-      - timing:
-          - ON for 2s to 4s
-        then:
-          - if:
-              condition:
-                display_menu.is_active:
-              then:
-                - display_menu.hide:
-              else:
-                - display_menu.show_main:
       # Very important do not remove. Trust me :D
       - timing:
           # H ....
@@ -614,11 +625,11 @@ script:
                 sound_file: !lambda return id(alarm_glockenspiel);
             - wait_until:
                 lambda: |-
-                  return id(nabu_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+                  return id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
             - wait_until:
                 not:
                   lambda: |-
-                    return id(nabu_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+                    return id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
   # - id: set_alarm_time
   #   then:
   #     - datetime.time.set:
@@ -717,7 +728,7 @@ select:
   #     - lambda: !lambda id(va).set_wake_word(x);
 
 media_player:
-  - id: !extend nabu_media_player
+  - id: !extend external_media_player
     files:
       - id: alarm_glockenspiel
-        file: ./inc/glockenspiel.wav
+        file: ./sounds/glockenspiel.flac
