@@ -195,8 +195,9 @@ display:
     pages:
       - id: page_time
         lambda: |-
-          it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 4 < 2) ? "%l:%M" : "%l %M"), id(the_time).now());
-          it.printf(it.get_width()-2, 36, id(font_smaller), TextAlign::BOTTOM_RIGHT, "%c", id(the_time).now().strftime("%P")[0]);
+          // it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 4 < 2) ? "%l:%M" : "%l %M"), id(the_time).now());
+          it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 4 < 2) ? "%l:%M" : "%l %M %P"), id(the_time).now());
+          // it.printf(it.get_width()-2, 36, id(font_smaller), TextAlign::BOTTOM_RIGHT, "%c", id(the_time).now().strftime("%P")[0]);
           if (id(show_weather).state) {
             std::map<std::string, std::string> weather_icon_map
               {
