@@ -1,13 +1,9 @@
 substitutions:
   friendly_name: Robovac 35C
   device_name: robovac
-esphome:
-  name: ${device_name}
-
-esp8266:
-  board: esp01_1m
 
 packages:
+  esphome: !include base/esp8266.template.yaml
   common: !include base/common.template.yaml
 
 wifi:

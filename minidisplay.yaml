@@ -1,13 +1,9 @@
-esphome:
-  name: minidisplay
-
-esp8266:
-  board: esp12e
-
 substitutions:
+  device_name: minidisplay
   friendly_name: Mini Display
 
 packages:
+  esphome: !include base/esp8266.template.yaml
   common: !include base/common.template.yaml
 
 time:

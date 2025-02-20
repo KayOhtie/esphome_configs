@@ -1,11 +1,9 @@
-  substitutions:
+substitutions:
   friendly_name: Holmes Tower
-esphome:
-  name: holmes-fan
-  platform: ESP8266
-  board: d1_mini
+  device_name: holmes_fan
 
 packages:
+  esphome: !include base/esp8266.template.yaml
   common: !include base/common.template.yaml
 
 time:

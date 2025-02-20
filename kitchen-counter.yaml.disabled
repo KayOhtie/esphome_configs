@@ -1,5 +1,6 @@
 substitutions:
   friendly_name: Merkury Light Strip
+  device_name: kitchen-strip
 wifi:
   use_address: kitchen-counter.local
 
@@ -8,11 +9,10 @@ ota:
   password: !secret kitchen_counter_ota
 
 packages:
+  esphome: !include base/esp8266.template.yaml
   common: !include base/common.template.yaml
+
 esphome:
-  name: merkury-strip
-  platform: ESP8266
-  board: esp8285
   on_boot:
     - lambda: |-
         id(my_ota).set_auth_password("");
