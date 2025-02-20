@@ -1,6 +1,6 @@
 substitutions:
   friendly_name: Holmes Tower
-  device_name: holmes_fan
+  device_name: holmes-fan
 
 packages:
   esphome: !include base/esp8266.template.yaml
