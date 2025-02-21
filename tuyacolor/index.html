@@ -56,4 +56,36 @@
             }
         </script>
     </head>
+    <body>
+    </body>
+    <script type="text/javascript" id="appcode">
+        const {a, button, del, div, input, span, ul, li} = van.tags;
+        const patternModes = [
+            "Fade",
+            "Flash",
+            "Music"
+        ];
+        const patternTypes = [
+            "Solid",
+            "Up",
+            "Down",
+            "Center",
+            "Stripe",
+            "Out",
+            "In",
+            "Rotate",
+            "Spiral"
+        ];
+        const patternId = Math.round(Math.random()*255).toString(16).padStart(2,"0");
+        const ColorPicker = () => {
+            const config = vanX.reactive({
+                'id': patternId,
+                'mode': 0,
+                'type': 0,
+                'speed': 10,
+                'colors':[],
+            });
+            van.derive(() => {});
+        };
+    </script>
 </html>
