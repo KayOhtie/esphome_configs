@@ -2,12 +2,33 @@ esphome:
   name: testdisplay
 
 host:
+  # mac_address: "94:E7:0B:A2:FC:AB"
 logger:
-api:
-  password: ""
+# api:
+#   password: ""
 # ota:
 # wifi:
 # captive_portal:
+api:
+  # port: 6053
+  # password: testpassword
+  on_client_connected:
+    - if:
+        condition:
+          lambda: 'return (0 == client_info.find("Home Assistant "));'
+        then:
+          - lvgl.widget.show: lbl_hastatus
+  on_client_disconnected:
+    - if:
+        condition:
+          lambda: 'return (0 == client_info.find("Home Assistant "));'
+        then:
+          - lvgl.widget.hide: lbl_hastatus
+
+time:
+  - platform: host
+    id: sntp_time
+    timezone: America/Chicago
 
 display:
   - platform: sdl
@@ -18,4 +39,44 @@ display:
       width: 320
 touchscreen:
   platform: sdl
+
 lvgl:
+  # theme:
+  style_definitions:
+    - id: header_footer
+      bg_color: 0x2F8CD8
+      bg_grad_color: 0x005782
+      bg_grad_dir: VER
+      bg_opa: COVER
+      border_opa: TRANSP
+      radius: 0
+      pad_all: 0
+      pad_row: 0
+      pad_column: 0
+      border_color: 0x0077b3
+      text_color: 0xFFFFFF
+      width: 100%
+      height: 30
+  top_layer:
+    widgets:
+      - label:
+          text: "\uF1EB"
+          id: lbl_hastatus
+          hidden: true
+          align: top_right
+          x: -2
+          y: 7
+          text_align: right
+          text_color: 0xFFFFFF
+  pages:
+    - id: main_page
+      widgets:
+        - obj:
+            align: TOP_MID
+            styles: header_footer
+            widgets:
+              - label:
+                  text: "ESPHome LVGL Display"
+                  align: CENTER
+                  text_align: CENTER
+                  text_color: 0xFFFFFF
