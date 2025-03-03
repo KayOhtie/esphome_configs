@@ -1,0 +1,313 @@
+esphome:
+  name: walkie
+  # libraries:
+  #    - "SPI"
+  #    - "Ticker"
+  #    - "SX126x-Arduino"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  # baud_rate: 0
+
+# Enable Home Assistant API
+# api:
+#   password: ""
+
+# ota:
+#   platform: esphome
+packages:
+  wifi: !include base/wifi.inc.yaml
+  ota: !include base/ota.inc.yaml
+  api: !include base/api.inc.yaml
+wifi:
+  on_connect:
+    - lvgl.widget.show: lbl_hastatus
+  on_disconnect:
+    - lvgl.widget.hide: lbl_hastatus
+
+# external_components:
+#   - source:
+#       type: git
+#       url: https://github.com/PaulSchulz/esphome-lora-sx126x
+#       ref: main
+#     components: ["lorawan_sx126x"]
+
+output:
+  - platform: ledc
+    pin: GPIO32
+    id: backlight_pwm
+    inverted: true
+  - platform: ledc
+    pin: GPIO19
+    id: spkr_pwm
+rtttl:
+  output: spkr_pwm
+  id: speaker_rtttl
+  gain: 50%
+
+light:
+  - platform: monochromatic
+    output: backlight_pwm
+    name: "Display Backlight"
+    id: back_light
+    restore_mode: ALWAYS_ON
+
+sn74hc165:
+  - id: sn74hc165_hub
+    clock_pin: GPIO22
+    data_pin: GPIO23
+    load_pin: GPIO21
+    # clock_inhibit_pin: GPIOXX
+    sr_count: 2
+
+binary_sensor:
+  - platform: gpio
+    id: key_del
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 0
+      inverted: true
+  - platform: gpio
+    id: key_7
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 1
+      inverted: true
+  - platform: gpio
+    id: key_4
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 2
+      inverted: true
+  - platform: gpio
+    id: key_1
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 3
+      inverted: true
+  - platform: gpio
+    id: key_2
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 4
+      inverted: true
+  - platform: gpio
+    id: key_5
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 5
+      inverted: true
+  - platform: gpio
+    id: key_8
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 6
+      inverted: true
+  - platform: gpio
+    id: key_0
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 7
+      inverted: true
+  - platform: gpio
+    id: key_func
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 8
+      inverted: true
+    on_release:
+      - if:
+          condition: lvgl.is_paused
+          then:
+            - logger.log: "LVGL resuming"
+            - lvgl.resume:
+            - lvgl.widget.redraw:
+            - light.turn_on: back_light
+  - platform: gpio
+    id: key_9
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 9
+      inverted: true
+  - platform: gpio
+    id: key_6
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 10
+      inverted: true
+  - platform: gpio
+    id: key_3
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 11
+      inverted: true
+  - platform: gpio
+    id: key_up
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 12
+      inverted: true
+  - platform: gpio
+    id: key_down
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 13
+      inverted: true
+  - platform: gpio
+    id: key_ok
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 14
+      inverted: true
+  - platform: gpio
+    id: key_esc
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 15
+      inverted: true
+
+sensor:
+  - platform: adc
+    pin: GPIO34
+    name: "Battery Voltage"
+    id: batt_volt
+    accuracy_decimals: 2
+    update_interval: 60s
+    attenuation: 12dB
+    samples: 10
+    filters:
+      - multiply: 6.0  # The voltage divider requires us to multiply by 2
+    on_value:
+      - lvgl.indicator.update:
+          id: batt_needle
+          value: !lambda "return x;"
+#   - platform: lora-sx126x
+#     id: lorarssi
+#     name: lorarssi
+
+spi:
+  - id: display_bus
+    clk_pin: GPIO27
+    mosi_pin: GPIO26
+  # - id: radio_bus
+  #   mosi_pin: GPIO5
+  #   miso_pin: GPIO17
+  #   clk_pin: GPIO16
+
+# lorawan_sx126x:
+#   # name: "LoRa Radio"
+#   pin_lora_reset: -1
+#   pin-lora_dio_1: GPIO18
+#   pin_lora_busy: GPIO4  
+#   pin_lora_nss: GPIO14  
+#   pin_lora_sclk: GPIO16 
+#   pin_lora_miso: GPIO17 
+#   pin_lora_mosi: GPIO5
+#   region: US915
+#   subchannel: 2
+#   device_type: CLASS_A
+#   authentication: OTAA
+#   app_eui: !secret lorawan_join_eui
+#   app_key: !secret lorawan_app_key
+
+# lora_sx126x:
+#   name: "LoRa Radio"
+  
+#   # # Interface to radio chip
+#   pin_lora_reset: -1  # LoRa Reset
+#   pin-lora_dio_1: GPIO18  # LoRa DIO_1
+#   pin_lora_busy: GPIO4  # LoRa SPI Busy
+#   pin_lora_nss: GPIO14  # LoRa SPI CS (Chip Select)
+#   pin_lora_sclk: GPIO16  # LoRa SPI SCLK
+#   pin_lora_miso: GPIO17  # LoRa SPI MISO (Master In, Slave Out)
+#   pin_lora_mosi: GPIO5  # LoRa SPI MOSI (Master Out, Slave In)
+#   # radio_txen:     -1  # LoRa Antenna TX Enable, on some boards.
+#   # radio_rxen:     -1  # LoRa Antenna RX Enable, on some boards.
+
+#   # LoRa Options
+#   # Setting these will enable the LoRa radio mode.
+#   #   tx_output_power: 22              # dBm
+#   #   lora_bandwidth: 0                # [0: 1  25 kHz, 1: 250 kHz, 2: 500 kHz, 3: Reserved]
+#   #   lora_spreading_factor: 7         # [SF7..SF12]
+#   #   lora_codingrate: 1               # [1: 4/5, 2: 4/6,  3: 4/7,  4: 4/8]
+#   #   lora_preamble_length: 8          # Same for Tx and Rx
+#   #   lora_symbol_timeout: 0           # Symbols
+#   #   lora_fx_length_payload_on: -1    # Default: -1 (False)
+#   #   lora_iq_inversion_on: -1         # Default: -1 (False) 
+#   #   rx_timeout_value: 3000           # ms
+#   #   tx_timeout_value: 3000           # ms
+#   rf_frequency: 915000000          # Hz - Manditory
+
+display:
+  - platform: ili9xxx
+    id: my_display
+    spi_id: display_bus
+    model: ST7735
+    dc_pin: GPIO33
+    reset_pin: GPIO15
+    # cs_pin: -1
+    invert_colors: false
+    dimensions:
+      height: 160
+      width: 128
+    rotation: 90°
+    # show_test_card: true
+    auto_clear_enabled: false
+    update_interval: never
+
+lvgl:
+  # encoders:
+  #   - enter_button: key_ok
+  #     sensor:
+  #       left_button: key_up
+  #       right_button: key_down
+  keypads:
+    - up: key_up
+      down: key_down
+      left: key_up
+      right: key_up
+      esc: key_esc
+      backspace: key_del
+      enter: key_ok
+      home: key_2
+      end: key_0
+      next: key_6
+      prev: key_4
+  widgets:
+    - meter:
+        scales:
+          range_from: 2.5
+          range_to: 5.5
+          ticks:
+            count: 12
+          angle_range: 180
+          indicators:
+            - arc:
+                end_value: 5.5
+                start_value: 2.5
+            - line:
+                id: batt_needle
+                width: 2
+                # r_mod: 3
+  on_idle:
+    - timeout: 30s
+      then:
+        - light.turn_off: back_light
+        - lvgl.pause:
+  top_layer:
+    bg_color: 0x0033DD
+    widgets:
+      - label:
+          text: "\uF1EB"
+          id: lbl_hastatus
+          hidden: true
+          align: top_right
+          x: -2
+          y: 7
+          text_align: right
+          text_color: 0xFFFFFF

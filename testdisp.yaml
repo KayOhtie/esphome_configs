@@ -1,0 +1,21 @@
+esphome:
+  name: testdisplay
+
+host:
+logger:
+api:
+  password: ""
+# ota:
+# wifi:
+# captive_portal:
+
+display:
+  - platform: sdl
+    show_test_card: true
+    # rotation: 90°
+    dimensions:
+      height: 240
+      width: 320
+touchscreen:
+  platform: sdl
+lvgl:

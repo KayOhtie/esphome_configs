@@ -1,0 +1,144 @@
+esphome:
+  name: infodisplay
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB: "y"
+
+      CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST: "y"
+      CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY: "y"
+
+      CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
+      CONFIG_MBEDTLS_SSL_PROTO_TLS1_3: "y" 
+
+# Enable logging
+logger:
+
+# # Enable Home Assistant API
+# api:
+#   password: ""
+
+# ota:
+#   - platform: esphome
+#     password: ""
+
+# wifi:
+#   ssid: "Coyote's Baubles"
+#   password: "internetofshit1"
+
+#   # Enable fallback hotspot (captive portal) in case wifi connection fails
+#   ap:
+#     ssid: "Infodisplay Fallback Hotspot"
+#     password: "21MYOl2F9OpG"
+
+# captive_portal:
+
+# Pins to use for things
+#  4 - Display CS -
+#  5 - Display Reset
+#  6 - Display DC
+#  7 - MOSI
+# 15 - SCK
+# 16 - LED
+# 17 - MISO
+# 18 - T_CLK
+#  8 - T_CS
+#  3 - T_DIN
+# 46 - T_DO
+#  9 - T_IRQ
+
+# i2c:
+#   - id: internal_i2c
+#     sda: GPIO5
+#     scl: GPIO6
+#     frequency: 400kHz
+
+psram:
+  mode: octal
+  speed: 40MHz
+
+spi:
+  - id: display_spi
+    clk_pin: GPIO15
+    mosi_pin: GPIO7
+    miso_pin: GPIO17
+    interface: any
+  - id: touch_spi
+    clk_pin: GPIO18
+    mosi_pin: GPIO3
+    miso_pin: GPIO46
+    interface: any
+
+output:
+  - platform: ledc
+    pin: GPIO16
+    id: backlight_pwm
+
+light:
+  - platform: monochromatic
+    output: backlight_pwm
+    name: "Display Backlight"
+    id: back_light
+    restore_mode: ALWAYS_ON
+
+touchscreen:
+  platform: xpt2046
+  id: the_touchscreen
+  spi_id: touch_spi
+  display: the_display
+  cs_pin: GPIO8
+  interrupt_pin: GPIO9
+  transform:
+    swap_xy: true
+  calibration:
+    x_min: 350
+    x_max: 3640
+    y_min: 350
+    y_max: 3750
+  # on_touch:
+  #   - lambda: |-
+  #         ESP_LOGI("cal", "x=%d, y=%d, x_raw=%d, y_raw=%0d",
+  #             touch.x,
+  #             touch.y,
+  #             touch.x_raw,
+  #             touch.y_raw
+  #             );
+
+color:
+  - id: my_red
+    red: 100%
+    green: 3%
+    blue: 5%
+
+display:
+  - platform: ili9xxx
+    id: the_display
+    model: ili9341
+    spi_id: display_spi
+    dc_pin: GPIO6
+    reset_pin: GPIO5
+    cs_pin: GPIO4
+    invert_colors: false
+    rotation: 90°
+    dimensions:
+      height: 320
+      width: 240
+    auto_clear_enabled: false
+    update_interval: never
+    # show_test_card: true
+    # lambda: |-
+    #   auto touch = id(the_touchscreen)->get_touch();
+    #   if (touch) // or touch.has_value()
+    #     it.filled_circle(touch.value().x, touch.value().y, 10, id(my_red));
+
+lvgl:
+  
