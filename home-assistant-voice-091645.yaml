@@ -33,12 +33,15 @@ font:
     - file: "gfonts://Material+Symbols+Outlined"
       glyphs: [
         "\ue425", # timer
-        "\ue7f4", # alarm
+        "\ue7f4", # notifications
+        "\ue855", # alarm clock
         "\ue029", # microphone
         "\uf5d1", # multiple microphones
         "\uf540", # calendar
+        # "\uef44", # bedtime
+        "\uf7ed", # backlight-high
         # Weather
-        "\uef44", # clear-night
+        "\uef44", # clear-night, bedtime
         "\ue2bd", # cloudy
         "\uf3cc", # exceptional
         "\ue818", # fog
@@ -81,7 +84,7 @@ graphical_display_menu:
   font: font_smaller
   items:
     - type: select
-      text: 'Alarm'
+      text: !lambda return "\ue855?";
       select: alarm_mode
       immediate_edit: true
     # - type: menu
@@ -103,7 +106,7 @@ graphical_display_menu:
     #       text: 'Back'
     - type: switch
       immediate_edit: true
-      text: 'Weather'
+      text: !lambda return "\uf172?";
       switch: show_weather
     # - type: menu
     #   text: 'Wake Word'
@@ -120,9 +123,12 @@ graphical_display_menu:
         #   text: 'Back'
     - type: switch
       immediate_edit: true
-      text: !lambda |-
-        return "\ue029 Tone";
+      text: !lambda return "\ue029\ue7f4?";
       switch: wake_sound
+    - type: number
+      text: !lambda return "\uef44\uf7ed";
+      number: brightness_night
+      format: '%.0f'
     - type: command
       text: 'Exit'
       on_value:
@@ -412,32 +418,32 @@ binary_sensor:
                     else:
                       - if:
                           condition:
-                            lambda: return id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+                            - display_menu.is_active:
                           then:
-                            - lambda: |
-                                id(external_media_player)
-                                  ->make_call()
-                                  .set_command(media_player::MediaPlayerCommand::MEDIA_PLAYER_COMMAND_STOP)
-                                  .set_announcement(true)
-                                  .perform();
+                            - display_menu.enter
                           else:
                             - if:
                                 condition:
-                                  voice_assistant.is_running:
+                                  lambda: return id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
                                 then:
-                                  - voice_assistant.stop:
+                                  - lambda: |
+                                      id(external_media_player)
+                                        ->make_call()
+                                        .set_command(media_player::MediaPlayerCommand::MEDIA_PLAYER_COMMAND_STOP)
+                                        .set_announcement(true)
+                                        .perform();
                                 else:
                                   - if:
                                       condition:
-                                        media_player.is_playing:
+                                        voice_assistant.is_running:
                                       then:
-                                        - media_player.pause:
+                                        - voice_assistant.stop:
                                       else:
                                         - if:
                                             condition:
-                                              - display_menu.is_active:
+                                              media_player.is_playing:
                                             then:
-                                              - display_menu.enter
+                                              - media_player.pause:
                                             else:
                                               - if:
                                                   condition:
