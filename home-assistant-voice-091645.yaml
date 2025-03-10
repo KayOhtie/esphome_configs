@@ -55,6 +55,12 @@ font:
         "\ue29c", # windy-variant
       ]
 
+globals:
+  - id: prior_volume
+    type: float
+    restore_value: no
+    initial_value: "0.0"
+
 time:
   - platform: homeassistant
     id: the_time
@@ -152,7 +158,13 @@ switch:
           duration: 1.0s
       # Refresh the LED ring
       - script.execute: control_leds
+      - media_player.volume_set: !lambda return id(prior_volume);
     on_turn_on:
+      - globals.set:
+          id: prior_volume
+          value: !lambda return id(external_media_player).volume;
+      - script.execute: control_leds_timer_ringing
+      - media_player.volume_set: 70%
       # Duck audio
       - mixer_speaker.apply_ducking:
           id: media_mixing_input
@@ -163,7 +175,6 @@ switch:
       # Ring timer
       - script.execute: ring_alarm
       # Refresh LED
-      - script.execute: control_leds
       # If 15 minutes have passed and the timer is still ringing, stop it.
       - delay: 15min
       - switch.turn_off: alarm_ringing
@@ -699,7 +710,7 @@ number:
     id: brightness_night
     name: Night Brightness
     entity_category: config
-    min_value: 10
+    min_value: 0
     max_value: 100
     step: 10
     optimistic: true
@@ -732,4 +743,4 @@ media_player:
   - id: !extend external_media_player
     files:
       - id: alarm_glockenspiel
-        file: ./sounds/glockenspiel.flac
+        file: ./sounds/alarm.flac
