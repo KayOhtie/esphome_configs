@@ -40,6 +40,7 @@ font:
         "\uf540", # calendar
         # "\uef44", # bedtime
         "\uf7ed", # backlight-high
+        "\ue405", # musical note
         # Weather
         "\uef44", # clear-night, bedtime
         "\ue2bd", # cloudy
@@ -83,13 +84,13 @@ graphical_display_menu:
   mode: rotary
   font: font_smaller
   items:
-    - type: select
-      text: !lambda return "\ue855?";
-      select: alarm_mode
-      immediate_edit: true
-    # - type: menu
-    #   text: 'Alarm Setup'
-    #   items:
+    - type: menu
+      text: Alarm...
+      items:
+        - type: select
+          text: !lambda return "\ue855?";
+          select: alarm_mode
+          immediate_edit: true
     #     - type: number
     #       text: 'Hour'
     #       number: alarm_hour
@@ -102,12 +103,21 @@ graphical_display_menu:
     #       format: "%2.0f"
     #       on_leave:
     #         - script.execute: set_alarm_time
-    #     - type: back
-    #       text: 'Back'
-    - type: switch
-      immediate_edit: true
-      text: !lambda return "\uf172?";
-      switch: show_weather
+        - type: back
+          text: 'Back'
+    - type: menu
+      text: Show...
+      items:
+        - type: switch
+          immediate_edit: true
+          text: Weather
+          switch: show_weather
+        - type: switch
+          immediate_edit: true
+          text: !lambda return "\ue405 Info";
+          switch: show_media_info
+        - type: back
+          text: 'Back'
     # - type: menu
     #   text: 'Wake Word'
     #   items:
@@ -123,10 +133,10 @@ graphical_display_menu:
         #   text: 'Back'
     - type: switch
       immediate_edit: true
-      text: !lambda return "\ue029\ue7f4?";
+      text: !lambda return "\ue029 \ue7f4";
       switch: wake_sound
     - type: number
-      text: !lambda return "\uef44\uf7ed";
+      text: !lambda return "\uef44 \uf7ed";
       number: brightness_night
       format: '%.0f'
     - type: command
@@ -196,6 +206,10 @@ switch:
   #   turn_off_action:
   #     - voice_assistant.stop
   #     - micro_wake_word.stop
+  - platform: template
+    id: show_media_info
+    restore_mode: RESTORE_DEFAULT_ON
+    optimistic: true
 
 i2c:
   - id: !extend grove_i2c
@@ -218,8 +232,9 @@ display:
           it.strftime(64, 0, id(font_time), TextAlign::TOP_CENTER, "%l:%M %P", id(the_time).now());
           // it.printf(it.get_width()-2, 36, id(font_smaller), TextAlign::BOTTOM_RIGHT, "%c", id(the_time).now().strftime("%P")[0]);
           if (
+            id(show_media_info).state &&
             (id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING) &&
-            (id(the_time).now().second % 20 < 10) &&
+            ((id(the_time).now().second % 20 < 10) || (!id(show_weather).state && id(alarm_mode).state == "Off")) &&
             (id(lights_state).state || id(the_sun).state.c_str() == "above_horizon")
           ) {
             it.print(0,40,id(font_smaller),id(media_info).state.c_str());
