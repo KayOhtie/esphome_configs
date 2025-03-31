@@ -2,7 +2,8 @@ substitutions:
   friendly_name: Soundbar IR
 esphome:
   name: soundbar-ir
-  platform: ESP32
+  # platform: ESP32
+esp32:
   board: adafruit_qtpy_esp32s2
 
 packages:
@@ -12,35 +13,70 @@ remote_transmitter:
   pin: GPIO9
   carrier_duty_percent: 50%
 
+script:
+  - id: send_code
+    parameters:
+      code: int
+    then:
+      - remote_transmitter.transmit_nec: 
+          address: 0xFF00
+          command: !lambda return ((0xFF - code) << 8) + code;
+
 button:
   - platform: template
-    name: "Optical"
-    on_press:
-     - remote_transmitter.transmit_nec:
-         address: 0xFF00
-         command: 0x37C8
+    name: "Power"
+    on_press: 
+     - lambda: id(send_code)->execute(0x40);
   - platform: template
-    name: "HDMI-ARC"
-    on_press:
-     - remote_transmitter.transmit_nec:
-         address: 0xFF00
-         command: 0x659A
+    name: "Vol+"
+    on_press: 
+     - lambda: id(send_code)->execute(0x41);
   - platform: template
-    name: "Mode-Direct"
-    on_press:
-     - remote_transmitter.transmit_nec:
-         address: 0xFF00
-         command: 0x738C
+    name: "Vol-"
+    on_press: 
+     - lambda: id(send_code)->execute(0x45);
+  - platform: template
+    name: "Mute"
+    on_press: 
+     - lambda: id(send_code)->execute(0x48);
+
+select:
+  - platform: template
+    name: "Source"
+    id: sel_source
+    options:
+      - Optical
+      - HDMI-ARC
+      - Bluetooth
+      - Aux
+      - Aux VA
+    optimistic: true
+    on_value: 
+      then:
+        - lambda: |- 
+            int sources_map[5] {0xC8,0x9A,0x22,0xB1,0xB2};
+            id(send_code)->execute(sources_map[i]);
+  - platform: template
+    name: "EQ Mode"
+    id: sel_eq
+    options:
+      - Direct
+      - Movie
+      - Music
+      - Game
+    optimistic: true
+    on_value: 
+      then:
+        - lambda: |- 
+            int eq_map[4] {0x8C,0x67,0x66,0xE1};
+            id(send_code)->execute(eq_map[i]);
 
 switch:
   - platform: template
     name: "Night Mode"
+    optimistic: true
     turn_on_action:
-     - remote_transmitter.transmit_nec:
-         address: 0xFF00
-         command: 0x9E61
+     - lambda: id(send_code)->execute(0x61);
     turn_off_action:
-     - remote_transmitter.transmit_nec:
-         address: 0xFF00
-         command: 0x9D62
+     - lambda: id(send_code)->execute(0x62);
     
