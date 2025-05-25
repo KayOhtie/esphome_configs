@@ -2,7 +2,7 @@ esphome:
   name: testdisplay
 
 host:
-  # mac_address: "94:E7:0B:A2:FC:AB"
+  mac_address: "94:E7:0B:A2:FC:AB"
 logger:
 # api:
 #   password: ""
@@ -10,7 +10,7 @@ logger:
 # wifi:
 # captive_portal:
 api:
-  # port: 6053
+  port: 6053
   # password: testpassword
   on_client_connected:
     - if:
