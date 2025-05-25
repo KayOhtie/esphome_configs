@@ -24,16 +24,16 @@ esp32:
 logger:
 
 # # Enable Home Assistant API
-# api:
-#   password: ""
+api:
+  # password: ""
 
-# ota:
-#   - platform: esphome
+ota:
+  - platform: esphome
 #     password: ""
 
-# wifi:
-#   ssid: "Coyote's Baubles"
-#   password: "internetofshit1"
+wifi:
+  ssid: "Coyote's Baubles"
+  password: "internetofshit1"
 
 #   # Enable fallback hotspot (captive portal) in case wifi connection fails
 #   ap:
@@ -96,7 +96,7 @@ touchscreen:
   spi_id: touch_spi
   display: the_display
   cs_pin: GPIO8
-  interrupt_pin: GPIO9
+  # interrupt_pin: GPIO9
   transform:
     swap_xy: true
   calibration:
@@ -141,4 +141,70 @@ display:
     #     it.filled_circle(touch.value().x, touch.value().y, 10, id(my_red));
 
 lvgl:
-  
+  # disp_bg_color: black
+  style_definitions:
+    - id: header_footer
+      bg_color: 0x2F8CD8
+      bg_grad_color: 0x005782
+      bg_grad_dir: VER
+      bg_opa: COVER
+      border_opa: TRANSP
+      radius: 0
+      pad_all: 0
+      pad_row: 0
+      pad_column: 0
+      border_color: 0x0077b3
+      text_color: 0xFFFFFF
+      width: 100%
+      height: 30
+  top_layer:
+    widgets:
+      - label:
+          styles: header_footer
+          text: "\uF1EB"
+          id: lbl_hastatus
+          hidden: true
+          align: top_right
+          x: -2
+          y: 7
+          text_align: right
+          text_color: 0xFFFFFF
+      - buttonmatrix:
+          align: bottom_mid
+          styles: header_footer
+          pad_all: 0
+          outline_width: 0
+          id: top_layer
+          items:
+            styles: header_footer
+          rows:
+            - buttons:
+              - id: page_prev
+                text: "\uF053"
+                on_press:
+                  then:
+                    lvgl.page.previous:
+              - id: page_home
+                text: "\uF015"
+                on_press:
+                  then:
+                    lvgl.page.show: main_page
+              - id: page_next
+                text: "\uF054"
+                on_press:
+                  then:
+                    lvgl.page.next:
+  pages:
+    - id: main_page
+      align: CENTER
+      widgets:
+        - obj:
+            height: SIZE_CONTENT
+            width: SIZE_CONTENT
+            align: CENTER
+            pad_all: 0
+            widgets:
+              - label:
+                  text_align: CENTER
+                  text_font: montserrat_48
+                  text: "12:00 AM"
