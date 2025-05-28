@@ -1,0 +1,193 @@
+font:
+  - file: "gfonts://Share+Tech+Mono"
+#   - file: "./fonts/BebasNeue-Regular.ttf"
+    id: font_time
+    size: 40
+  - file: "gfonts://VT323"
+#   - file: "./fonts/BebasNeue-Regular.ttf"
+    id: font_smaller
+    size: 20
+    extras:
+    - file: "gfonts://Material+Symbols+Outlined"
+      glyphs: [
+        "\ue425", # timer
+        "\ue7f4", # notifications
+        "\ue855", # alarm clock
+        "\ue029", # microphone
+        "\uf5d1", # multiple microphones
+        "\uf540", # calendar
+        # "\uef44", # bedtime
+        "\uf7ed", # backlight-high
+        "\ue405", # musical note
+        # Weather
+        "\uef44", # clear-night, bedtime
+        "\ue2bd", # cloudy
+        "\uf3cc", # exceptional
+        "\ue818", # fog
+        "\uf67f", # hail
+        "\uea0b", # lightning
+        "\uebdb", # lightning-rainy
+        "\uf172", # partlycloudy
+        "\uf61f", # pouring
+        "\uf61e", # rainy
+        "\ue80f", # snowy
+        "\uf61d", # snowy-rainy
+        "\ue81a", # sunny
+        "\uefd8", # windy
+        "\ue29c", # windy-variant
+      ]
+time:
+  - platform: homeassistant
+    id: the_time
+  # - platform: sntp
+  #   id: the_time
+  #   timezone: America/Chicago
+  #   servers:
+  #     - "10.2.1.1"
+
+i2c:
+  - id: !extend grove_i2c
+    frequency: 800kHz
+
+display:
+  - platform: ssd1306_i2c
+    id: the_display
+    model: "SSD1306 128x64"
+    i2c_id: grove_i2c
+    flip_y: false
+    flip_x: false
+    contrast: "100%"
+    address: 0x3C
+    pages:
+      - id: page_time
+        lambda: |-
+          // it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 4 < 2) ? "%l:%M" : "%l %M"), id(the_time).now());
+          // it.strftime(110, 0, id(font_time), TextAlign::TOP_RIGHT, ((id(the_time).now().second % 4 < 2) ? "%l:%M %P" : "%l %M %P"), id(the_time).now());
+          it.strftime(64, 0, id(font_time), TextAlign::TOP_CENTER, "%l:%M %P", id(the_time).now());
+          // it.printf(it.get_width()-2, 36, id(font_smaller), TextAlign::BOTTOM_RIGHT, "%c", id(the_time).now().strftime("%P")[0]);
+          if (
+            id(show_media_info).state &&
+            (id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING) &&
+            ((id(the_time).now().second % 20 < 10) || (!id(show_weather).state && id(alarm_mode).state == "Off")) &&
+            (id(lights_state).state || id(the_sun).state.c_str() == "above_horizon")
+          ) {
+            it.print(0,40,id(font_smaller),id(media_info).state.c_str());
+          }
+          else {
+            if (id(show_weather).state) {
+              std::map<std::string, std::string> weather_icon_map
+                {
+                  {"clear-night", "\uef44"},
+                  {"cloudy", "\ue2bd"},
+                  {"exceptional", "\uf3cc"},
+                  {"fog", "\ue818"},
+                  {"hail", "\uf67f"},
+                  {"lightning", "\uea0b"},
+                  {"lightning-rainy", "\uebdb"},
+                  {"partlycloudy", "\uf172"},
+                  {"pouring", "\uf61f"},
+                  {"rainy", "\uf61e"},
+                  {"snowy", "\ue80f"},
+                  {"snowy-rainy", "\uf61d"},
+                  {"sunny", "\ue81a"},
+                  {"windy", "\uefd8"},
+                  {"windy-variant", "\ue29c"}
+                };
+              it.printf(0, 38, id(font_smaller),"%s%3.0f°", weather_icon_map[id(weather_condition).state.c_str()].c_str(), id(weather_temp).state);
+            }
+            if (id(va).is_continuous()) {
+              it.print(80, 40, id(font_smaller), "\ue029");
+            } else if (id(va).is_running()) {
+              it.print(80, 40, id(font_smaller), "\uf5d1");
+            }
+            if (!id(va).get_timers().empty()) {
+              it.print(60, 40, id(font_smaller), "\ue425");
+            }
+            if (id(alarm_mode).active_index() > 0) {
+              it.print(it.get_width()-2, it.get_height()-2, id(font_smaller), TextAlign::BOTTOM_RIGHT, (id(alarm_mode).active_index() == 2 ? "\ue7f4" : "\uf540"));
+            }
+          }
+      - id: page_timer
+        lambda: |-
+          int minutes = 0;
+          int seconds = 0;
+          auto timers = id(va).get_timers();
+          if (!timers.empty()) {
+            auto timer = timers.begin()->second;
+            minutes = timer.seconds_left / 60; 
+            seconds = timer.seconds_left % 60;
+            it.print(0, 40, id(font_smaller), timer.name.c_str());
+          }
+          it.printf(it.get_width(), 0, id(font_time), TextAlign::TOP_RIGHT, "%d:%02d", minutes, seconds);
+
+text_sensor:
+  - platform: homeassistant
+    id: the_sun
+    entity_id: sun.sun
+    on_value: 
+      then:
+        - script.execute: update_brightness
+  - platform: homeassistant
+    id: weather_condition
+    entity_id: ${weather_entity}
+
+switch:
+  - platform: template
+    id: show_weather
+    name: Show Weather
+    restore_mode: RESTORE_DEFAULT_OFF
+    optimistic: true
+
+sensor:
+  - platform: homeassistant
+    id: weather_temp
+    entity_id: ${weather_entity}
+    attribute: temperature
+
+interval:
+  - interval: 5s
+    then:
+      - if:
+          condition:
+            - lambda: return !id(va).get_timers().empty();
+          then:
+            - display.page.show_next: the_display
+
+binary_sensor:
+  - platform: homeassistant
+    entity_id: ${light_group_entity}
+    id: lights_state
+    on_state: 
+      then:
+        - script.execute: update_brightness
+
+number:
+  - platform: template
+    id: brightness_night
+    name: Night Brightness
+    entity_category: config
+    min_value: 0
+    max_value: 100
+    step: 10
+    optimistic: true
+    restore_value: true
+    on_value: 
+      then:
+        - script.execute: update_brightness
+
+script:
+  - id: update_brightness
+    then:
+      - if:
+          condition:
+            or:
+              - binary_sensor.is_on: lights_state
+              - text_sensor.state: 
+                  id: the_sun
+                  state: "above_horizon"
+          then:
+            - lambda: |-
+                id(the_display).set_contrast(1.0);
+          else:
+            - lambda: |-
+                id(the_display).set_contrast(float(id(brightness_night).state)/100.0);

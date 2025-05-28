@@ -1,0 +1,562 @@
+   
+graphical_display_menu:
+  id: the_menu
+  display: the_display
+  on_redraw:
+    then:
+      - component.update: the_display
+  active: false
+  mode: rotary
+  font: font_smaller
+  items:
+    - type: menu
+      text: Alarm...
+      items:
+        - type: select
+          text: !lambda return "\ue855?";
+          select: alarm_mode
+          immediate_edit: true
+    #     - type: number
+    #       text: 'Hour'
+    #       number: alarm_hour
+    #       format: "%2.0f"
+    #       on_leave:
+    #         - script.execute: set_alarm_time
+    #     - type: number
+    #       text: 'Minute'
+    #       number: alarm_minute
+    #       format: "%2.0f"
+    #       on_leave:
+    #         - script.execute: set_alarm_time
+        - type: back
+          text: 'Back'
+    - type: menu
+      text: Show...
+      items:
+        - type: switch
+          immediate_edit: true
+          text: Weather
+          switch: show_weather
+        - type: switch
+          immediate_edit: true
+          text: !lambda return "\ue405 Info";
+          switch: show_media_info
+        - type: back
+          text: 'Back'
+    # - type: menu
+    #   text: 'Wake Word'
+    #   items:
+        # - type: switch
+        #   immediate_edit: true
+        #   text: 'Wake Word'
+        #   switch: use_wake_word
+        # - type: select
+        #   select: wake_word_set
+        #   text: Active Word
+        # immediate_edit: true
+        # - type: back
+        #   text: 'Back'
+    - type: switch
+      immediate_edit: true
+      text: !lambda return "\ue029 \ue7f4";
+      switch: wake_sound
+    - type: number
+      text: !lambda return "\uef44 \uf7ed";
+      number: brightness_night
+      format: '%.0f'
+    - type: command
+      text: 'Exit'
+      on_value:
+        then:
+          - display_menu.hide:
+
+switch:
+    # Internal switch to track when a timer is ringing on the device.
+  - platform: template
+    id: alarm_ringing
+    optimistic: true
+    internal: true
+    restore_mode: ALWAYS_OFF
+    on_turn_off:
+      # Disable stop wake word
+      - lambda: id(stop).disable();
+      - script.execute: disable_repeat
+      # Stop any current annoucement (ie: stop the timer ring mid playback)
+      - if:
+          condition:
+            media_player.is_announcing:
+          then:
+            media_player.stop:
+              announcement: true
+      # Set back ducking ratio to zero
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 0
+          duration: 1.0s
+      # Refresh the LED ring
+      - script.execute: control_leds
+      - media_player.volume_set: !lambda return id(prior_volume);
+    on_turn_on:
+      - globals.set:
+          id: prior_volume
+          value: !lambda return id(external_media_player).volume;
+      - script.execute: control_leds_timer_ringing
+      - media_player.volume_set: 70%
+      # Duck audio
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 20
+          duration: 0.0s
+      # Enable stop wake word
+      - lambda: id(stop).enable();
+      # Ring timer
+      - script.execute: ring_alarm
+      # Refresh LED
+      # If 15 minutes have passed and the timer is still ringing, stop it.
+      - delay: 15min
+      - switch.turn_off: alarm_ringing
+  # - platform: template
+  #   id: use_wake_word
+  #   restore_mode: RESTORE_DEFAULT_ON
+  #   entity_category: config
+  #   lambda: !lambda return id(mww).is_running();
+  #   turn_on_action:
+  #     - micro_wake_word.start
+  #     - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
+  #     - script.execute: control_leds
+  #   turn_off_action:
+  #     - voice_assistant.stop
+  #     - micro_wake_word.stop
+  - platform: template
+    id: show_media_info
+    restore_mode: RESTORE_DEFAULT_ON
+    optimistic: true
+
+text_sensor:
+  - platform: homeassistant
+    id: media_info
+    entity_id: ${media_title_entity}
+
+globals:
+  - id: prior_volume
+    type: float
+    restore_value: no
+    initial_value: "0.0"
+
+binary_sensor:
+  - platform: homeassistant
+    entity_id: ${alarm_schedule_entity}
+    id: alarm_schedule
+    on_state: 
+      then:
+        - if: 
+            condition: 
+              - lambda: |- 
+                  return (id(alarm_mode).active_index() == 1) && x && true;
+            then:
+              - switch.turn_on: alarm_ringing
+  # Center Button. Used for many things (See on_multi_click)
+  - id: !remove center_button
+  - platform: gpio
+    id: center_button
+    pin:
+      number: GPIO0
+      inverted: true
+    on_press:
+      - if:
+          condition:
+            not:
+              display_menu.is_active:
+          then:
+            - script.execute: control_leds
+    on_release:
+      - if:
+          condition:
+            not:
+              display_menu.is_active:
+          then:
+            - script.execute: control_leds
+      # If a factory reset is requested, factory reset on release
+      - if:
+          condition:
+            lambda: return id(factory_reset_requested);
+          then:
+            - button.press: factory_reset_button
+    on_multi_click:
+      # Simple Click:
+      #   - Abort "things" in order
+      #     - Timer
+      #     - Announcements
+      #     - Voice Assistant Pipeline run
+      #     - Music
+      #   - Starts the voice assistant if it is not yet running and if the device is not muted.
+      - timing:
+          - ON for at most 1s
+          - OFF for at least 0.25s
+        then:
+          - if:
+              condition:
+                lambda: return !id(init_in_progress) && !id(color_changed);
+              then:
+                - if:
+                    condition:
+                      or:
+                        - switch.is_on: timer_ringing
+                        - switch.is_on: alarm_ringing
+                    then:
+                      - switch.turn_off: timer_ringing
+                      - switch.turn_off: alarm_ringing
+                    else:
+                      - if:
+                          condition:
+                            - display_menu.is_active:
+                          then:
+                            - display_menu.enter
+                          else:
+                            - if:
+                                condition:
+                                  lambda: return id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+                                then:
+                                  - lambda: |
+                                      id(external_media_player)
+                                        ->make_call()
+                                        .set_command(media_player::MediaPlayerCommand::MEDIA_PLAYER_COMMAND_STOP)
+                                        .set_announcement(true)
+                                        .perform();
+                                else:
+                                  - if:
+                                      condition:
+                                        voice_assistant.is_running:
+                                      then:
+                                        - voice_assistant.stop:
+                                      else:
+                                        - if:
+                                            condition:
+                                              media_player.is_playing:
+                                            then:
+                                              - media_player.pause:
+                                            else:
+                                              - if:
+                                                  condition:
+                                                    and:
+                                                      - switch.is_off: master_mute_switch
+                                                      - not:
+                                                          voice_assistant.is_running
+                                                  then:
+                                                    - script.execute:
+                                                        id: play_sound
+                                                        priority: true
+                                                        sound_file: !lambda return id(center_button_press_sound);
+                                                    - delay: 300ms
+                                                    - voice_assistant.start:
+      # Double Click
+      #  . Exposed as an event entity. To be used in automations inside Home Assistant
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 0.25s
+          - ON for at most 1s
+          - OFF for at least 0.25s
+        then:
+          - if:
+              condition:
+                lambda: return !id(init_in_progress) && !id(color_changed);
+              then:
+                - script.execute:
+                    id: play_sound
+                    priority: false
+                    sound_file: !lambda return id(center_button_double_press_sound);
+                - event.trigger:
+                    id: button_press_event
+                    event_type: "double_press"
+      # Triple Click
+      #  . Exposed as an event entity. To be used in automations inside Home Assistant
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 0.25s
+          - ON for at most 1s
+          - OFF for at most 0.25s
+          - ON for at most 1s
+          - OFF for at least 0.25s
+        then:
+          - if:
+              condition:
+                lambda: return !id(init_in_progress) && !id(color_changed);
+              then:
+                - if:
+                    condition:
+                      display_menu.is_active:
+                    then:
+                      - display_menu.hide:
+                    else:
+                      - display_menu.show_main:
+                - script.execute:
+                    id: play_sound
+                    priority: false
+                    sound_file: !lambda return id(center_button_triple_press_sound);
+                - event.trigger:
+                    id: button_press_event
+                    event_type: "triple_press"
+                
+      # Long Press
+      #  . Exposed as an event entity. To be used in automations inside Home Assistant
+      - timing:
+          - ON for 1s to 2s
+        then:
+          - if:
+              condition:
+                lambda: return !id(init_in_progress) && !id(color_changed);
+              then:
+                - script.execute:
+                    id: play_sound
+                    priority: false
+                    sound_file: !lambda return id(center_button_long_press_sound);
+                - light.turn_off: voice_assistant_leds
+                - event.trigger:
+                    id: button_press_event
+                    event_type: "long_press"
+      # Very important do not remove. Trust me :D
+      - timing:
+          # H ....
+          - ON for at most 0.2s
+          - OFF for 0s to 2s
+          - ON for at most 0.2s
+          - OFF for 0s to 2s
+          - ON for at most 0.2s
+          - OFF for 0s to 2s
+          - ON for at most 0.2s
+          - OFF for 0.5s to 2s
+          # A ._
+          - ON for at most 0.2s
+          - OFF for 0s to 2s
+          - ON for 0.2s to 2s
+        then:
+          - if:
+              condition:
+                lambda: return !id(init_in_progress);
+              then:
+                - light.turn_on:
+                    brightness: 100%
+                    id: voice_assistant_leds
+                    effect: "Tick"
+                - script.execute:
+                    id: play_sound
+                    priority: true
+                    sound_file: !lambda return id(easter_egg_tick_sound);
+                - delay: 4s
+                - light.turn_off: voice_assistant_leds
+                - script.execute:
+                    id: play_sound
+                    priority: true
+                    sound_file: !lambda return id(easter_egg_tada_sound);
+                - light.turn_on:
+                    brightness: 100%
+                    id: voice_assistant_leds
+                    effect: "Rainbow"
+                - event.trigger:
+                    id: button_press_event
+                    event_type: "easter_egg_press"
+      # Factory Reset Warning
+      #  . Audible and Visible warning.
+      - timing:
+          - ON for at least 10s
+        then:
+          - if:
+              condition:
+                lambda: return !id(dial_touched);
+              then:
+                - light.turn_on:
+                    brightness: 100%
+                    id: voice_assistant_leds
+                    effect: "Factory Reset Coming Up"
+                - script.execute:
+                    id: play_sound
+                    priority: true
+                    sound_file: !lambda return id(factory_reset_initiated_sound);
+                - wait_until:
+                    binary_sensor.is_off: center_button
+                - if:
+                    condition:
+                      lambda: return !id(factory_reset_requested);
+                    then:
+                      - light.turn_off: voice_assistant_leds
+                      - script.execute:
+                          id: play_sound
+                          priority: true
+                          sound_file: !lambda return id(factory_reset_cancelled_sound);
+      # Factory Reset Confirmed.
+      #  . Audible warning to prompt user to release the button
+      #  . Set factory_reset_requested to true
+      - timing:
+          - ON for at least 22s
+        then:
+          - if:
+              condition:
+                lambda: return !id(dial_touched);
+              then:
+                - script.execute:
+                    id: play_sound
+                    priority: true
+                    sound_file: !lambda return id(factory_reset_confirmed_sound);
+                - light.turn_on:
+                    brightness: 100%
+                    red: 100%
+                    green: 0%
+                    blue: 0%
+                    id: voice_assistant_leds
+                    effect: "none"
+                - lambda: id(factory_reset_requested) = true;
+
+sensor:
+  - id: !remove dial
+  # The dial. Used to control volume and Hue of the LED ring.
+  - platform: rotary_encoder
+    id: dial
+    pin_a: GPIO16
+    pin_b: GPIO18
+    resolution: 2
+    on_clockwise:
+      - if:
+          condition:
+            display_menu.is_active:
+          then:
+            - display_menu.down:
+          else:
+            - lambda: id(dial_touched) = true;
+            - if:
+                condition:
+                  binary_sensor.is_off: center_button
+                then:
+                  - script.execute:
+                      id: control_volume
+                      increase_volume: true
+                else:
+                  - script.execute:
+                      id: control_hue
+                      increase_hue: true
+    on_anticlockwise:
+      - if:
+          condition:
+            display_menu.is_active:
+          then:
+            - display_menu.up:
+          else:
+            - lambda: id(dial_touched) = true;
+            - if:
+                condition:
+                  binary_sensor.is_off: center_button
+                then:
+                  - script.execute:
+                      id: control_volume
+                      increase_volume: false
+                else:
+                  - script.execute:
+                      id: control_hue
+                      increase_hue: false
+
+# number:
+# - platform: template
+#   id: alarm_minute
+#   entity_category: config
+#   internal: true
+#   min_value: 0
+#   max_value: 60
+#   step: 1
+#   optimistic: true
+#   # lambda: !lambda return id(alarm_time).minute;
+#   # set_action:
+#   #   then:
+#   #     - datetime.time.set:
+#   #         id: alarm_time
+#   #         time: !lambda |-
+#   #           uint8_t hour = int(id(alarm_hour).state);
+#   #           return {.second = 0, .minute = x, .hour = hour};
+# - platform: template
+#   id: alarm_hour
+#   entity_category: config
+#   internal: true
+#   min_value: 0
+#   max_value: 24
+#   step: 1
+#   optimistic: true
+#   # lambda: !lambda return id(alarm_time).hour;
+#   # set_action: 
+#   #   then:
+#       # - datetime.time.set:
+#       #     id: alarm_time
+#       #     time: !lambda |-
+#       #       uint8_t minute = int(id(alarm_minute).state);
+#       #       return {.second = 0, .minute = minute, .hour = x};
+
+script:
+  - id: ring_alarm
+    then:
+      - while:
+          condition:
+            switch.is_on: alarm_ringing
+          then:
+            - script.execute:
+                id: play_sound
+                priority: true
+                sound_file: !lambda return id(alarm_glockenspiel);
+            - wait_until:
+                lambda: |-
+                  return id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+            - wait_until:
+                not:
+                  lambda: |-
+                    return id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+  # - id: set_alarm_time
+  #   then:
+  #     - datetime.time.set:
+  #         id: alarm_time
+  #         time: !lambda |-
+  #           uint8_t hour = int(id(alarm_hour).state);
+  #           uint8_t minute = int(id(alarm_minute).state);
+  #           return {.second = 0, .minute = minute, .hour = hour};
+      
+# datetime:
+#   - platform: template
+#     type: time
+#     id: alarm_time
+#     name: Alarm Time
+#     entity_category: config
+#     time_id: the_time
+#     lambda: !lambda return {};
+#     set_action:
+#       - select.set_index:
+#           id: alarm_mode
+#           index: 1
+#     on_time:
+#       then:
+#         - if:
+#             condition:
+#               - lambda: |-
+#                   return id(alarm_mode).active_index() == 2;
+#             then:
+#               - logger.log: "Alarm triggered!"
+#               - switch.turn_on: alarm_ringing
+select:
+  - platform: template
+    name: Alarm Mode
+    id: alarm_mode
+    optimistic: true
+    restore_value: true
+    options: 
+      - 'Off'
+      - Schedule
+      # - Local
+  # - platform: template
+  #   id: wake_word_set
+  #   options:
+  #     - hey_jarvis
+  #     - hey_mycroft
+  #     - okay_nabu
+  #   lambda: !lambda return id(va).get_configuration().active_wake_words[0];
+  #   set_action:
+  #     - lambda: !lambda id(va).set_wake_word(x);
+
+media_player:
+  - id: !extend external_media_player
+    files:
+      - id: alarm_glockenspiel
+        file: ./sounds/alarm.flac
