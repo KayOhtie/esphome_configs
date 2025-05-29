@@ -20,7 +20,6 @@ api:
     - if:
         condition:
           lambda: |-
-            ESP_LOGD("api", "Client connected!");
             return (0 == client_info.find("Home Assistant "));
         then:
           - lvgl.widget.show: lbl_hastatus
@@ -28,14 +27,16 @@ api:
     - if:
         condition:
           lambda: |-
-            ESP_LOGD("api", "Client disconnected!");
             return (0 == client_info.find("Home Assistant "));
         then:
           - lvgl.widget.hide: lbl_hastatus
 
 globals:
-  - id: tasks_string
+  - id: todo_string
     type: std::string
+  - id: shoppinglist_string
+    type: std::string
+  
 
 time:
   - platform: host
@@ -74,17 +75,38 @@ font:
     id: font_time
     size: 50
 
+mapping:
+  - id: page_titles
+    from: int
+    to: string
+    entries:
+      0: Clock
+      1: Forecast
+      2: Shopping List
+      3: To-Do List
+      4: Timers
+      5: Switches
+
+
 script:
   - id: time_update
     then:
       - lvgl.label.update:
-          id: clock_label
+          id: lbl_clock
           text: !lambda return id(time_comp).now().strftime("%l:%M %p");
-  - id: title_update;
+  - id: get_todo
     then:
-      - lvgl.
+  - id: on_page_change
+    then:
+      - lvgl.label.update:
+          id: lbl_pagetitle
+          text: !lambda return id(page_titles)[id(lvgl_node).get_current_page()].c_str();
+      - if:
+          condition:
+            lvgl.page.is_showing: 
 
 lvgl:
+  id: lvgl_node
   # theme:
   style_definitions:
     - id: header_footer
@@ -113,6 +135,13 @@ lvgl:
           styles: header_footer
           widgets:
             - label:
+                id: lbl_pagetitle
+                styles: transparent_holder
+                text: Clock
+                align: CENTER
+                text_align: CENTER
+                text_color: 0xFFFFFF
+            - label:
                 styles: transparent_holder
                 text: "\uF1EB"
                 id: lbl_hastatus
@@ -137,20 +166,26 @@ lvgl:
                 on_press:
                   then:
                     - lvgl.page.previous:
-                        animation: OUT_RIGHT
-                        time: 100ms
+                        animation: MOVE_RIGHT
+                        time: 200ms
+                    - script.execute: on_page_change
               - id: page_home
                 text: "\uF015"
                 on_press:
                   then:
-                    lvgl.page.show: main_page
+                    - lvgl.page.show: 
+                        id: main_page
+                        animation: MOVE_BOTTOM
+                        time: 200ms
+                    - script.execute: on_page_change
               - id: page_next
                 text: "\uF054"
                 on_press:
                   then:
                     - lvgl.page.next:
-                        animation: OUT_LEFT
-                        time: 100ms
+                        animation: MOVE_LEFT
+                        time: 200ms
+                    - script.execute: on_page_change
   pages:
     - id: main_page
       align: CENTER
@@ -163,22 +198,23 @@ lvgl:
             pad_all: 0
             widgets:
               - label:
-                  id: clock_label
+                  id: lbl_clock
                   text_align: CENTER
                   text_font: font_time
                   text: "12:00 AM"
+    - id: forecast_page
+      align: center
+      widgets:
+        - obj:
+            styles: transparent_holder
+            width: SIZE_CONTENT
+            height: SIZE_CONTENT
+            max_height: 180
+            align: CENTER
+            pad_all: 20
     - id: shopping_list_page
       align: CENTER
       widgets:
-        - obj:
-            align: TOP_MID
-            styles: transparent_holder
-            widgets:
-              - label:
-                  text: "Shopping List"
-                  align: CENTER
-                  text_align: CENTER
-                  text_color: 0xFFFFFF
         - obj:
             styles: transparent_holder
             width: SIZE_CONTENT
@@ -188,8 +224,14 @@ lvgl:
             pad_all: 20
             widgets:
               - label:
-                  id: shopping_list_label
+                  id: lbl_shoppinglist
                   text_align: LEFT
                   text_font: montserrat_30
                   text: !lambda return id(tasks_string).c_str();
-
+    - id: todo_list_page
+    - id: timers_page
+    - id: switches_page
+    - id: pages_page
+      skip: true
+    - id: config_page
+      skip: true
