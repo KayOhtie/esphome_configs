@@ -50,25 +50,7 @@ display:
           }
           else {
             if (id(show_weather).state) {
-              std::map<std::string, std::string> weather_icon_map
-                {
-                  {"clear-night", "\uef44"},
-                  {"cloudy", "\ue2bd"},
-                  {"exceptional", "\uf3cc"},
-                  {"fog", "\ue818"},
-                  {"hail", "\uf67f"},
-                  {"lightning", "\uea0b"},
-                  {"lightning-rainy", "\uebdb"},
-                  {"partlycloudy", "\uf172"},
-                  {"pouring", "\uf61f"},
-                  {"rainy", "\uf61e"},
-                  {"snowy", "\ue80f"},
-                  {"snowy-rainy", "\uf61d"},
-                  {"sunny", "\ue81a"},
-                  {"windy", "\uefd8"},
-                  {"windy-variant", "\ue29c"}
-                };
-              it.printf(0, 38, id(font_smaller),"%s%3.0f°", weather_icon_map[id(weather_condition).state.c_str()].c_str(), id(weather_temp).state);
+              it.printf(0, 38, id(font_smaller),"%s%3.0f°", id(weather_icon_map)[id(weather_condition).state.c_str()].c_str(), id(weather_temp).state);
             }
             if (id(va).is_continuous()) {
               it.print(80, 40, id(font_smaller), "\ue029");
