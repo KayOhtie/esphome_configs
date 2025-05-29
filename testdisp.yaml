@@ -1,5 +1,9 @@
+substitutions:
+  display_name: Test Display
+  device_name: testdisplay
+
 esphome:
-  name: testdisplay
+  name: ${device_name}
 
 host:
   mac_address: "94:E7:0B:A2:FC:AB"
@@ -15,30 +19,70 @@ api:
   on_client_connected:
     - if:
         condition:
-          lambda: 'return (0 == client_info.find("Home Assistant "));'
+          lambda: |-
+            ESP_LOGD("api", "Client connected!");
+            return (0 == client_info.find("Home Assistant "));
         then:
           - lvgl.widget.show: lbl_hastatus
   on_client_disconnected:
     - if:
         condition:
-          lambda: 'return (0 == client_info.find("Home Assistant "));'
+          lambda: |-
+            ESP_LOGD("api", "Client disconnected!");
+            return (0 == client_info.find("Home Assistant "));
         then:
           - lvgl.widget.hide: lbl_hastatus
 
+globals:
+  - id: tasks_string
+    type: std::string
+
 time:
   - platform: host
-    id: sntp_time
     timezone: America/Chicago
+    id: time_comp
+    on_time_sync:
+      - script.execute: time_update
+    on_time:
+      - minutes: '*'
+        seconds: 0
+        then:
+          - script.execute: time_update
 
 display:
   - platform: sdl
-    show_test_card: true
     # rotation: 90°
     dimensions:
       height: 240
       width: 320
 touchscreen:
   platform: sdl
+
+color:
+  - id: color_green
+    red: 0%
+    green: 100%
+    blue: 0%
+  - id: color_red
+    red: 100%
+    green: 3%
+    blue: 5%
+
+font:
+  - file: "gfonts://Martian+Mono"
+  # - file: "./fonts/BebasNeue-Regular.ttf"
+    id: font_time
+    size: 50
+
+script:
+  - id: time_update
+    then:
+      - lvgl.label.update:
+          id: clock_label
+          text: !lambda return id(time_comp).now().strftime("%l:%M %p");
+  - id: title_update;
+    then:
+      - lvgl.
 
 lvgl:
   # theme:
@@ -57,26 +101,95 @@ lvgl:
       text_color: 0xFFFFFF
       width: 100%
       height: 30
+    - id: transparent_holder
+      bg_opa: TRANSP
+      border_opa: TRANSP
+      border_side: NONE
+      outline_opa: TRANSP
   top_layer:
     widgets:
-      - label:
-          text: "\uF1EB"
-          id: lbl_hastatus
-          hidden: true
-          align: top_right
-          x: -2
-          y: 7
-          text_align: right
-          text_color: 0xFFFFFF
+      - obj:
+          align: TOP_MID
+          styles: header_footer
+          widgets:
+            - label:
+                styles: transparent_holder
+                text: "\uF1EB"
+                id: lbl_hastatus
+                hidden: true
+                align: top_right
+                x: -2
+                y: 5
+                text_align: right
+                text_color: 0xFFFFFF
+      - buttonmatrix:
+          align: BOTTOM_MID
+          styles: header_footer
+          pad_all: 0
+          outline_width: 0
+          id: top_layer
+          items:
+            styles: header_footer
+          rows:
+            - buttons:
+              - id: page_prev
+                text: "\uF053"
+                on_press:
+                  then:
+                    - lvgl.page.previous:
+                        animation: OUT_RIGHT
+                        time: 100ms
+              - id: page_home
+                text: "\uF015"
+                on_press:
+                  then:
+                    lvgl.page.show: main_page
+              - id: page_next
+                text: "\uF054"
+                on_press:
+                  then:
+                    - lvgl.page.next:
+                        animation: OUT_LEFT
+                        time: 100ms
   pages:
     - id: main_page
+      align: CENTER
+      widgets:
+        - obj:
+            height: SIZE_CONTENT
+            width: SIZE_CONTENT
+            align: CENTER
+            styles: transparent_holder
+            pad_all: 0
+            widgets:
+              - label:
+                  id: clock_label
+                  text_align: CENTER
+                  text_font: font_time
+                  text: "12:00 AM"
+    - id: shopping_list_page
+      align: CENTER
       widgets:
         - obj:
             align: TOP_MID
-            styles: header_footer
+            styles: transparent_holder
             widgets:
               - label:
-                  text: "ESPHome LVGL Display"
+                  text: "Shopping List"
                   align: CENTER
                   text_align: CENTER
                   text_color: 0xFFFFFF
+        - obj:
+            styles: transparent_holder
+            width: SIZE_CONTENT
+            height: SIZE_CONTENT
+            max_height: 180
+            align: CENTER
+            pad_all: 20
+            widgets:
+              - label:
+                  id: shopping_list_label
+                  text_align: LEFT
+                  text_font: montserrat_30
+                  text: !lambda return id(tasks_string).c_str();
+
