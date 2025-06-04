@@ -497,7 +497,9 @@ script:
             - script.execute:
                 id: play_sound
                 priority: true
-                sound_file: !lambda return id(alarm_glockenspiel);
+                sound_file: !lambda |-
+                  int alarm_id = rand() % 3;
+                  return id(alarm_map)[alarm_id];
             - wait_until:
                 lambda: |-
                   return id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
@@ -505,6 +507,7 @@ script:
                 not:
                   lambda: |-
                     return id(external_media_player)->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+      - switch.turn_off: alarm_ringing
   # - id: set_alarm_time
   #   then:
   #     - datetime.time.set:
@@ -555,8 +558,21 @@ select:
   #   set_action:
   #     - lambda: !lambda id(va).set_wake_word(x);
 
+mapping:
+  - id: alarm_map
+    from: int
+    to: audio::AudioFile
+    entries:
+      0: alarm1
+      1: alarm2
+      2: alarm3
+
 media_player:
   - id: !extend external_media_player
     files:
-      - id: alarm_glockenspiel
-        file: ./sounds/alarm.flac
+      - id: alarm1
+        file: ./sounds/alarm1.flac
+      - id: alarm2
+        file: ./sounds/alarm2.flac
+      - id: alarm3
+        file: ./sounds/alarm3.flac
