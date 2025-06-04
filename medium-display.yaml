@@ -1,5 +1,20 @@
+substitutions:
+  display_name: Info Display
+  device_name: infodisplay
+  hass_url: http://10.2.1.250:8123
+  hass_token: !secret testdisptoken
+  todo_list: todo.reminders
+  shopping_list: todo.shopping_list
+  weather_entity: weather.pirateweather
+
 esphome:
   name: infodisplay
+  on_boot:
+    - priority: 100
+      then:
+        - script.execute: time_update
+        - script.execute: get_todos
+        - script.execute: get_weather
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -26,7 +41,20 @@ logger:
 # # Enable Home Assistant API
 api:
   # password: ""
-
+  on_client_connected:
+    - if:
+        condition:
+          lambda: |-
+            return (0 == client_info.find("Home Assistant "));
+        then:
+          - lvgl.widget.show: lbl_hastatus
+  on_client_disconnected:
+    - if:
+        condition:
+          lambda: |-
+            return (0 == client_info.find("Home Assistant "));
+        then:
+          - lvgl.widget.hide: lbl_hastatus
 ota:
   - platform: esphome
 #     password: ""
@@ -40,7 +68,340 @@ wifi:
 #     ssid: "Infodisplay Fallback Hotspot"
 #     password: "21MYOl2F9OpG"
 
-# captive_portal:
+globals:
+  - id: todolist_string
+    type: std::string
+  - id: shoppinglist_string
+    type: std::string
+  
+http_request:
+
+time:
+  - platform: homeassistant
+    timezone: America/Chicago
+    id: time_comp
+    on_time_sync:
+      - script.execute: time_update
+    on_time:
+      - minutes: '*'
+        seconds: 0
+        then:
+          - script.execute: time_update
+
+font:
+  - file: "gfonts://Martian+Mono"
+  # - file: "./fonts/BebasNeue-Regular.ttf"
+    id: font_time
+    size: 50
+
+image:
+  - file: "img/weather/cloud.png"
+    type: RGB565
+    transparency: alpha_channel
+    id: img_cloud
+    resize: 64x64
+  - file: "img/weather/crescent.png"
+    type: RGB565
+    transparency: alpha_channel
+    id: img_crescent
+    resize: 64x64
+  - file: "img/weather/cross.png"
+    type: RGB565
+    transparency: alpha_channel
+    id: img_cross
+    resize: 64x64
+  - file: "img/weather/foggy.png"
+    type: RGB565
+    transparency: alpha_channel
+    id: img_foggy
+    resize: 64x64
+  - file: "img/weather/lightning.png"
+    type: RGB565
+    transparency: alpha_channel
+    id: img_lightning
+    resize: 64x64
+  - file: "img/weather/lightning_rain.png"
+    type: RGB565
+    transparency: alpha_channel
+    id: img_lightning_rain
+    resize: 64x64
+  - file: "img/weather/rain.png"
+    type: RGB565
+    transparency: alpha_channel
+    id: img_rain
+    resize: 64x64
+  - file: "img/weather/snow.png"
+    type: RGB565
+    transparency: alpha_channel
+    id: img_snow
+    resize: 64x64
+  - file: "img/weather/sun.png"
+    type: RGB565
+    transparency: alpha_channel
+    id: img_sun
+    resize: 64x64
+  - file: "img/weather/sun_behind_cloud.png"
+    type: RGB565
+    transparency: alpha_channel
+    id: img_sun_behind_cloud
+    resize: 64x64
+
+mapping:
+  - id: page_titles
+    from: int
+    to: string
+    entries:
+      0: Clock
+      1: Forecast
+      2: Shopping List
+      3: To-Do List
+      4: Timers
+      5: Switches
+      6: Pages
+      7: Config
+  - id: weather_img
+    from: string
+    to: image
+    entries: 
+      clear-night: img_crescent
+      cloudy: img_cloud
+      exceptional: img_cross
+      fog: img_foggy
+      hail: img_snow
+      lightning: img_lightning
+      lightning-rainy: img_lightning_rain
+      partlycloudy: img_sun_behind_cloud
+      pouring: img_rain
+      rainy: img_rain
+      snowy: img_snow
+      snowy-rainy: img_snow
+      sunny: img_sun
+      windy: img_sun
+      windy-variant: img_sun
+  - id: weather_str
+    from: string
+    to: string
+    entries: 
+      clear-night: Clear Night
+      cloudy: Cloudy
+      exceptional: Exception
+      fog: Fog
+      hail: Hail
+      lightning: Lightning
+      lightning-rainy: Stormy
+      partlycloudy: Partly Cloudy
+      pouring: Pouring
+      rainy: Rainy
+      snowy: Snowy
+      snowy-rainy: Snow/Rain
+      sunny: Sunny
+      windy: Windy
+      windy-variant: Windier
+
+script:
+  - id: time_update
+    then:
+      - lvgl.label.update:
+          id: lbl_clock
+          text: !lambda return id(time_comp).now().strftime("%l:%M %p");
+      - lvgl.widget.redraw:
+          id: lbl_clock
+  - id: get_todos
+    then:
+      - http_request.post:
+          url: ${hass_url}/api/services/todo/get_items?return_response=null
+          request_headers:
+            Content-Type: application/json
+            Authorization: Bearer ${hass_token}
+          capture_response: true
+          max_response_buffer_size: 4096
+          json:
+            entity_id: ${shopping_list}
+            status: needs_action
+          on_response: 
+            then:
+              if:
+                condition:
+                  lambda: return response->status_code == 200;
+                then:
+                  - lambda: |-
+                      json::parse_json(body, [](JsonObject root) -> bool {
+                        if (root["service_response"]["${shopping_list}"]["items"]) {
+                          std::string mergeString;
+                          auto items = root["service_response"]["${shopping_list}"]["items"];
+                          for (size_t i = 0; i < items.size(); i++) {
+                            mergeString += ((std::string) items[i]["summary"]);
+                            if (i < items.size() - 1) {
+                                mergeString += "\n";
+                            }
+                          }
+                          id(shoppinglist_string) = mergeString;
+                          return true;
+                        } else {
+                          ESP_LOGI("sdl", "No 'items' in ${shopping_list} key");
+                          return false;
+                        }
+                      });
+                  - lvgl.label.update:
+                      id: lbl_shoppinglist
+                      text: !lambda return id(shoppinglist_string).c_str();
+                else:
+                  logger.log:
+                    format: "Error: Response status %d, message %s"
+                    args: ['response->status_code', 'body.c_str()']
+      - http_request.post:
+          url: ${hass_url}/api/services/todo/get_items?return_response=null
+          request_headers:
+            Content-Type: application/json
+            Authorization: Bearer ${hass_token}
+          capture_response: true
+          max_response_buffer_size: 4096
+          json:
+            entity_id: ${todo_list}
+            status: needs_action
+          on_response: 
+            then:
+              if:
+                condition:
+                  lambda: return response->status_code == 200;
+                then:
+                  - lambda: |-
+                      json::parse_json(body, [](JsonObject root) -> bool {
+                        if (root["service_response"]["${todo_list}"]["items"]) {
+                          std::string mergeString;
+                          auto items = root["service_response"]["${todo_list}"]["items"];
+                          for (size_t i = 0; i < items.size(); i++) {
+                            mergeString += ((std::string) items[i]["summary"]);
+                            if (i < items.size() - 1) {
+                                mergeString += "\n";
+                            }
+                          }
+                          id(todolist_string) = mergeString;
+                          return true;
+                        } else {
+                          ESP_LOGI("sdl", "No 'items' in ${todo_list} key");
+                          return false;
+                        }
+                      });
+                  - lvgl.label.update:
+                      id: lbl_todolist
+                      text: !lambda return id(todolist_string).c_str();
+                else:
+                  logger.log:
+                    format: "Error: Response status %d, message %s"
+                    args: ['response->status_code', 'body.c_str()']
+  - id: get_weather
+    then:
+      - http_request.post:
+          url: ${hass_url}/api/services/weather/get_forecasts?return_response=null
+          request_headers:
+            Content-Type: application/json
+            Authorization: Bearer ${hass_token}
+          capture_response: true
+          max_response_buffer_size: 4096
+          json:
+            entity_id: ${weather_entity}
+            type: daily
+          on_response: 
+            then:
+              if:
+                condition:
+                  lambda: return response->status_code == 200;
+                then:
+                  - lambda: |-
+                      json::parse_json(body, [](JsonObject root) -> bool {
+                        if (root["service_response"]["${weather_entity}"]["forecast"]) {
+                          auto forecast = root["service_response"]["${weather_entity}"]["forecast"];
+                          id(update_weather)->execute("today",forecast[0]["condition"],forecast[0]["temperature"],forecast[0]["templow"],forecast[0]["humidity"]);
+                          id(update_weather)->execute("tomorrow",forecast[1]["condition"],forecast[1]["temperature"],forecast[1]["templow"],forecast[1]["humidity"]);
+                          id(update_weather)->execute("next",forecast[2]["condition"],forecast[2]["temperature"],forecast[2]["templow"],forecast[2]["humidity"]);
+                          return true;
+                        } else {
+                          ESP_LOGI("sdl", "No 'items' in ${weather_entity} key");
+                          return false;
+                        }
+                      });
+                else:
+                  logger.log:
+                    format: "Error: Response status %d, message %s"
+                    args: ['response->status_code', 'body.c_str()']
+  - id: update_weather
+    parameters:
+      date: string
+      condition: string
+      temperature_high: int
+      temperature_low: int
+      humidity: int
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return date == "today";
+          then:
+            - lvgl.label.update:
+                id: lbl_forecast_condition_today
+                text: !lambda return id(weather_str)[condition].c_str();
+            - lvgl.label.update:
+                id: lbl_forecast_temp_today
+                text: !lambda |-
+                  char buf[25];
+                  sprintf(buf, "%d / %d °F\n%d %%", temperature_high, temperature_low, humidity);
+                  return buf;
+            - lvgl.image.update:
+                id: img_forecast_today
+                src: !lambda return id(weather_img)[condition];
+      - if:
+          condition:
+            lambda: |-
+              return date == "tomorrow";
+          then:
+            - lvgl.label.update:
+                id: lbl_forecast_condition_tomorrow
+                text: !lambda return id(weather_str)[condition].c_str();
+            - lvgl.label.update:
+                id: lbl_forecast_date_tomorrow
+                text: !lambda |-
+                  auto date_obj = id(time_comp).now();
+                  date_obj.increment_day();
+                  return date_obj.strftime("%A");
+            - lvgl.label.update:
+                id: lbl_forecast_temp_tomorrow
+                text: !lambda |-
+                  char buf[25];
+                  sprintf(buf, "%d / %d °F\n%d %%", temperature_high, temperature_low, humidity);
+                  return buf;
+            - lvgl.image.update:
+                id: img_forecast_tomorrow
+                src: !lambda return id(weather_img)[condition];
+      - if:
+          condition:
+            lambda: |-
+              return date == "next";
+          then:
+            - lvgl.label.update:
+                id: lbl_forecast_condition_next
+                text: !lambda return id(weather_str)[condition].c_str();
+            - lvgl.label.update:
+                id: lbl_forecast_date_next
+                text: !lambda |-
+                  auto date_obj = id(time_comp).now();
+                  date_obj.increment_day();
+                  date_obj.increment_day();
+                  return date_obj.strftime("%A");
+            - lvgl.label.update:
+                id: lbl_forecast_temp_next
+                text: !lambda |-
+                  char buf[25];
+                  sprintf(buf, "%d / %d °F\n%d %%", temperature_high, temperature_low, humidity);
+                  return buf;
+            - lvgl.image.update:
+                id: img_forecast_next
+                src: !lambda return id(weather_img)[condition];
+  - id: on_page_change
+    then:
+      - lvgl.label.update:
+          id: lbl_pagetitle
+          text: !lambda return id(page_titles)[id(lvgl_node).get_current_page()].c_str();
 
 # Pins to use for things
 #  4 - Display CS -
@@ -113,11 +474,6 @@ touchscreen:
   #             touch.y_raw
   #             );
 
-color:
-  - id: my_red
-    red: 100%
-    green: 3%
-    blue: 5%
 
 display:
   - platform: ili9xxx
@@ -134,14 +490,11 @@ display:
       width: 240
     auto_clear_enabled: false
     update_interval: never
-    # show_test_card: true
-    # lambda: |-
-    #   auto touch = id(the_touchscreen)->get_touch();
-    #   if (touch) // or touch.has_value()
-    #     it.filled_circle(touch.value().x, touch.value().y, 10, id(my_red));
+
 
 lvgl:
-  # disp_bg_color: black
+  id: lvgl_node
+  # theme:
   style_definitions:
     - id: header_footer
       bg_color: 0x2F8CD8
@@ -157,54 +510,370 @@ lvgl:
       text_color: 0xFFFFFF
       width: 100%
       height: 30
+    - id: transparent_holder
+      bg_opa: TRANSP
+      border_opa: TRANSP
+      border_side: NONE
+      outline_opa: TRANSP
+    - id: weather_layout
+      pad_left: 6
+      pad_right: 6
+      pad_row: 8
+      pad_column: 6
+
   top_layer:
     widgets:
-      - label:
+      - obj:
+          align: TOP_MID
           styles: header_footer
-          text: "\uF1EB"
-          id: lbl_hastatus
-          hidden: true
-          align: top_right
-          x: -2
-          y: 7
-          text_align: right
-          text_color: 0xFFFFFF
+          widgets:
+            - label:
+                id: lbl_pagetitle
+                styles: transparent_holder
+                text: Clock
+                align: CENTER
+                text_align: CENTER
+                text_color: 0xFFFFFF
+            - label:
+                styles: transparent_holder
+                text: "\uF1EB"
+                id: lbl_hastatus
+                hidden: true
+                align: top_right
+                x: -2
+                y: 5
+                text_align: right
+                text_color: 0xFFFFFF
       - buttonmatrix:
-          align: bottom_mid
+          align: BOTTOM_MID
           styles: header_footer
           pad_all: 0
           outline_width: 0
           id: top_layer
           items:
-            styles: header_footer
+            styles:
+              - header_footer
+              - transparent_holder
           rows:
             - buttons:
               - id: page_prev
                 text: "\uF053"
                 on_press:
                   then:
-                    lvgl.page.previous:
+                    - lvgl.page.previous:
+                        animation: MOVE_RIGHT
+                        time: 200ms
+                    - script.execute: on_page_change
               - id: page_home
                 text: "\uF015"
                 on_press:
                   then:
-                    lvgl.page.show: main_page
+                    - lvgl.page.show: 
+                        id: main_page
+                        animation: MOVE_BOTTOM
+                        time: 200ms
+                    - script.execute: on_page_change
+                on_long_press:
+                  then:
+                    lvgl.page.show: pages_page
               - id: page_next
                 text: "\uF054"
                 on_press:
                   then:
-                    lvgl.page.next:
+                    - lvgl.page.next:
+                        animation: MOVE_LEFT
+                        time: 200ms
+                    - script.execute: on_page_change
+  on_idle:
+    - timeout: 120s
+      then:
+        - lvgl.page.show: main_page
+        - script.execute: on_page_change
   pages:
     - id: main_page
-      align: CENTER
+      align: LEFT_MID
       widgets:
         - obj:
             height: SIZE_CONTENT
-            width: SIZE_CONTENT
+            width: 320
             align: CENTER
+            styles: transparent_holder
             pad_all: 0
             widgets:
               - label:
+                  align: CENTER
+                  id: lbl_clock
                   text_align: CENTER
-                  text_font: montserrat_48
+                  text_font: font_time
                   text: "12:00 AM"
+    - id: forecast_page
+      align: CENTER
+      widgets:
+        - obj:
+            align: CENTER
+            width: 320
+            height: 180
+            styles: 
+              - transparent_holder
+              - weather_layout
+            layout:
+              # type: flex
+              # flex_flow: column
+              type: GRID
+              grid_columns: [95px, 95px, 95px]
+              grid_rows: [CONTENT, CONTENT, CONTENT, CONTENT]
+              grid_column_align: CENTER
+              grid_row_align: CENTER
+            widgets:
+              - label:
+                  id: lbl_forecast_date_today
+                  text: "Today"
+                  align: TOP_MID
+                  width: 95px
+                  text_align: CENTER
+                  grid_cell_column_pos: 0
+                  grid_cell_row_pos: 0
+              - label:
+                  id: lbl_forecast_date_tomorrow
+                  text: "Tommorrow"
+                  align: TOP_MID
+                  width: 95px
+                  text_align: CENTER
+                  grid_cell_column_pos: 1
+                  grid_cell_row_pos: 0
+              - label:
+                  id: lbl_forecast_date_next
+                  text: "Next"
+                  align: TOP_MID
+                  width: 95px
+                  text_align: CENTER
+                  grid_cell_column_pos: 2
+                  grid_cell_row_pos: 0
+              - obj:
+                  width: 95px
+                  height: SIZE_CONTENT
+                  styles: transparent_holder
+                  pad_all: 0
+                  grid_cell_column_pos: 0
+                  grid_cell_row_pos: 1
+                  widgets:
+                    - image:
+                        id: img_forecast_today
+                        src: img_cross
+                        align: TOP_MID
+                        styles: transparent_holder
+                        pad_all: 0
+              - obj:
+                  width: 95px
+                  height: SIZE_CONTENT
+                  styles: transparent_holder
+                  pad_all: 0
+                  grid_cell_column_pos: 1
+                  grid_cell_row_pos: 1
+                  widgets:
+                    - image:
+                        id: img_forecast_tomorrow
+                        src: img_cross
+                        align: TOP_MID
+                        styles: transparent_holder
+                        pad_all: 0
+              - obj:
+                  width: 95px
+                  height: SIZE_CONTENT
+                  styles: transparent_holder
+                  pad_all: 0
+                  grid_cell_column_pos: 2
+                  grid_cell_row_pos: 1
+                  widgets:
+                    - image:
+                        id: img_forecast_next
+                        src: img_cross
+                        align: TOP_MID
+                        styles: transparent_holder
+                        pad_all: 0
+              - label:
+                  id: lbl_forecast_condition_today
+                  text: "NONE"
+                  align: TOP_MID
+                  width: 95px
+                  grid_cell_column_pos: 0
+                  grid_cell_row_pos: 2
+              - label:
+                  id: lbl_forecast_condition_tomorrow
+                  text: "NONE"
+                  align: TOP_MID
+                  width: 95px
+                  grid_cell_column_pos: 1
+                  grid_cell_row_pos: 2
+              - label:
+                  id: lbl_forecast_condition_next
+                  text: "NONE"
+                  align: TOP_MID
+                  width: 95px
+                  grid_cell_column_pos: 2
+                  grid_cell_row_pos: 2
+              - label:
+                  id: lbl_forecast_temp_today
+                  text: "N/A °F"
+                  align: TOP_MID
+                  width: 95px
+                  grid_cell_column_pos: 0
+                  grid_cell_row_pos: 3
+              - label:
+                  id: lbl_forecast_temp_tomorrow
+                  text: "N/A °F"
+                  align: TOP_MID
+                  width: 95px
+                  grid_cell_column_pos: 1
+                  grid_cell_row_pos: 3
+              - label:
+                  id: lbl_forecast_temp_next
+                  text: "N/A °F"
+                  align: TOP_MID
+                  width: 95px
+                  grid_cell_column_pos: 2
+                  grid_cell_row_pos: 3
+    - id: shopping_list_page
+      align: TOP_LEFT
+      widgets:
+        - obj:
+            styles: transparent_holder
+            width: 320
+            height: 160
+            # max_height: 160
+            pad_left: 10
+            pad_right: 10
+            pad_top: 40
+            pad_bottom: 40
+            widgets:
+              - label:
+                  align: CENTER
+                  id: lbl_shoppinglist
+                  text_align: LEFT
+                  text_font: montserrat_24
+                  text: !lambda return id(shoppinglist_string).c_str();
+    - id: todo_list_page
+      align: TOP_LEFT
+      widgets:
+        - obj:
+            styles: transparent_holder
+            width: 320
+            height: 160
+            # max_height: 160
+            pad_left: 10
+            pad_right: 10
+            pad_top: 40
+            pad_bottom: 40
+            widgets:
+              - label:
+                  align: CENTER
+                  id: lbl_todolist
+                  text_align: LEFT
+                  text_font: montserrat_24
+                  text: !lambda return id(todolist_string).c_str();
+    - id: timers_page
+    - id: switches_page
+    - id: pages_page
+      skip: true
+      align: CENTER
+      widgets:
+        - obj:
+            id: btn_goto_matrix
+            align: CENTER
+            width: 100%
+            styles: transparent_holder
+            height: SIZE_CONTENT
+            max_height: 180px
+            pad_all: 6
+            layout:
+              type: FLEX
+              flex_flow: COLUMN
+              flex_align_cross: CENTER
+            widgets:
+              - button:
+                  id: btn_goto_clock
+                  width: 100%
+                  height: 40
+                  widgets:
+                   - label:
+                        align: CENTER
+                        text: "\uF015 Home"
+                  on_click:
+                    then:
+                      - lvgl.page.show: main_page
+                      - script.execute: on_page_change
+              - button:
+                  id: btn_goto_forecast
+                  width: 100%
+                  height: 40
+                  widgets:
+                   - label:
+                        align: CENTER
+                        text: "\uF0E7 Forecast"
+                  on_click:
+                    then:
+                      - lvgl.page.show: forecast_page
+                      - script.execute: on_page_change
+              - button:
+                  id: btn_goto_shoppinglist
+                  width: 100%
+                  height: 40
+                  widgets:
+                   - label:
+                        align: CENTER
+                        text: "\uF043 Shopping List"
+                  on_click:
+                    then:
+                      - lvgl.page.show: shopping_list_page
+                      - script.execute: on_page_change
+              - button:
+                  id: btn_goto_todo
+                  width: 100%
+                  height: 40
+                  widgets:
+                   - label:
+                        align: CENTER
+                        text: "\uF00B To-do List"
+                  on_click:
+                    then:
+                      - lvgl.page.show: todo_list_page
+                      - script.execute: on_page_change
+              - button:
+                  id: btn_goto_timers
+                  width: 100%
+                  height: 40
+                  widgets:
+                   - label:
+                        align: CENTER
+                        text: "\uF0F3 Timers"
+                  on_click:
+                    then:
+                      - lvgl.page.show: timers_page
+                      - script.execute: on_page_change
+              - button:
+                  id: btn_goto_switches
+                  width: 100%
+                  height: 40
+                  widgets:
+                   - label:
+                        align: CENTER
+                        text: "\uF011 Switches"
+                  on_click:
+                    then:
+                      - lvgl.page.show: switches_page
+                      - script.execute: on_page_change
+              - button:
+                  id: btn_goto_config
+                  width: 100%
+                  height: 40
+                  widgets:
+                   - label:
+                        align: CENTER
+                        text: "\uF013 Configuration"
+                  on_click:
+                    then:
+                      - lvgl.page.show: config_page
+                      - script.execute: on_page_change
+
+    - id: config_page
+      skip: true

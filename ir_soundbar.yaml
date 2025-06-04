@@ -2,8 +2,17 @@ substitutions:
   friendly_name: Soundbar IR
 esphome:
   name: soundbar-ir
-  platform: ESP32
-  board: 
+esp32:
+  board: m5stack-atom
 
-packages:
-  common: !include base/common.template.yaml
+logger:
+  level: INFO
+# packages:
+#   common: !include base/common.template.yaml
+
+remote_receiver:
+  pin: 
+    number: GPIO26
+    inverted: True
+  dump: nec
+  # filter: 100us

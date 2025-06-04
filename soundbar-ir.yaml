@@ -3,22 +3,101 @@ substitutions:
 esphome:
   name: soundbar-ir
   # platform: ESP32
+# esp32:
+#   board: adafruit_qtpy_esp32s2
+
 esp32:
-  board: adafruit_qtpy_esp32s2
+  board: m5stack-atom
 
 packages:
   common: !include base/common.template.yaml
 
+event: 
+  - platform: template
+    name: "Vizio Button"
+    id: vizio_button
+    event_types:
+      - Next
+      - Previous
+      - Play/Pause
+      - VZTV On
+      - VZTV Off
+    on_event:
+      then:
+        - lambda: |-
+            ESP_LOGI("main", "Event %s triggered.", event_type.c_str());
 remote_transmitter:
-  pin: GPIO9
-  carrier_duty_percent: 50%
+  - id: external_ir
+    pin: GPIO32
+    carrier_duty_percent: 50%
+  - id: internal_ir
+    pin: GPIO12
+    carrier_duty_percent: 50%
+
+globals:
+  - id: vizio_first
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+mapping:
+  - id: vizio_map
+    from: int
+    to: string
+    entries:
+      0x748B: Next
+      0x758A: Previous
+      0x718E: Play/Pause
+      0xE11E: VZTV On
+      0xE01F: VZTV Off
+  - id: roku_map
+    from: int
+    to: string
+    entries:
+      0xE619: Up
+      0xCC33: Down
+      0xE11E: Left
+      0xD22D: Right
+
+
+remote_receiver:
+  pin: 
+    number: GPIO26
+    inverted: True
+  dump: nec
+  on_nec:
+    then:
+      lambda: |-
+      switch (x.address)
+        // Vizio Soundbar Remote
+        case 0xFF00:
+          switch (x.command) {
+            case 0x748B:
+            case 0x758A:
+            case 0x718E:
+            case 0xE11E:
+            case 0xE01F:
+              id(vizio_button).trigger(id(vizio_map)[x.command]);
+              break;
+            default:
+              ESP_LOGI("main", "Received command %d", x.command);
+              break;
+          }
+          break;
+        // Roku TV Remote
+        case 0xC7EA:
+          if 
+          switch (x.command) {
+
+          }
 
 script:
   - id: send_code
     parameters:
       code: int
     then:
-      - remote_transmitter.transmit_nec: 
+      - remote_transmitter.transmit_nec:
+          transmitter_id: external_ir
           address: 0xFF00
           command: !lambda return ((0xFF - code) << 8) + code;
 
